@@ -12,7 +12,7 @@ Detection runs locally inside the add-in. Word annotations are owned by the Word
 
 A catalog request may load the translations authorized by Digital Bible Society. An uncached preview or insertion may request only the selected translation identifier, canonical book identifier, and chapter number from the DBS ARC API. Provider responses are treated as untrusted data and never executed as HTML.
 
-Authorized catalog and Scripture responses may be cached on the user's device to reduce repeat requests and improve resilience. The cache will be bounded, versioned, and clearable; it will not contain document prose, file names, identity, or surrounding text.
+Authorized catalog and Scripture responses may be cached on the user's device to reduce repeat requests and improve resilience. This version-one local cache is limited to 65 entries and 4 MiB total; catalog entries expire after 24 hours and chapter entries after seven days. It is clearable from the task pane. Translation preference is stored separately and is not removed by clearing Scripture content. Neither store contains document prose, file names, identity, surrounding text, or a request history.
 
 No Bible is bundled. Without DBS connectivity, reference detection may continue but passage preview and insertion are unavailable.
 

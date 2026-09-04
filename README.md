@@ -2,7 +2,7 @@
 
 Verseform for Word is a small Microsoft Word add-in for people who write with Scripture. A completed reference becomes interactive after a delimiter; the user can preview authorized Digital Bible Society text and explicitly replace that reference with the passage and an editable citation.
 
-The project seed and provider-free Word on the web interaction proof are complete. The current walking slice detects references locally, creates exact temporary annotations, previews labeled test text in the task pane, and replaces only an explicitly activated, observably fresh occurrence. Authorized DBS text arrives in the next roadmap slice.
+The project seed, Word interaction proof, and authorized DBS walking slice are complete. The add-in detects references locally, creates exact temporary annotations, loads the authorized translation catalog, previews a selected passage only on activation, and replaces only an explicitly activated, observably fresh occurrence with passage, editable citation, and provider attribution. NASB is preferred unless the user has saved another authorized translation.
 
 ## Why one add-in
 
@@ -34,7 +34,7 @@ npm run dev
 
 Then open Word on the web, choose **Add-ins → Advanced → Upload My Add-in**, and upload `manifest.xml`. The local server must remain running at `https://localhost:3000`.
 
-Use `npm run check` for the local code and structural manifest gate. The VFW-010 walking interaction has passed its Word on the web host proof. Microsoft Marketplace validation, production DBS integration, screen-reader and Windows forced-color validation, and the same-source Word for Windows walk remain later release gates.
+Use `npm run check` for the local code and structural manifest gate. VFW-010 and VFW-020 have passed their Word on the web host proofs, including live NASB/KJV retrieval, local caching and clearing, editable attribution insertion, one-step Undo, stale-response rejection, and provider-unavailable behavior without prose loss. Broader reference hardening is next; production hosting/Marketplace validation, screen-reader and Windows forced-color validation, and the same-source Word for Windows walk remain release gates.
 
 ## Project authorities
 

@@ -144,6 +144,52 @@ p {
   background-color: var(--surface);
 }
 
+.translation-panel {
+  display: grid;
+  gap: 8px;
+}
+
+label {
+  color: var(--muted-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+select {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 30px 8px 10px;
+  border: 1px solid var(--secondary-border);
+  border-radius: 6px;
+  background-color: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+select:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+select:disabled {
+  border-color: var(--border);
+  background-color: var(--disabled-surface);
+  color: var(--disabled-text);
+}
+
+.compact-button {
+  justify-self: start;
+  min-height: 32px;
+  padding-block: 6px;
+  font-size: 12px;
+}
+
+.attribution {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+}
+
 .actions {
   display: grid;
   gap: 8px;

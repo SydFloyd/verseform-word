@@ -17,6 +17,14 @@ import { isReplaceableAnnotationState } from "../src/office/replacementGuard";
 import { OfficeWordGateway } from "../src/office/wordGateway";
 import { mountTaskPane } from "../src/ui/taskPane";
 import { taskPaneView } from "../src/ui/viewModel";
+import { MemoryTranslationPreference } from "../src/adapters/translationPreference";
+import type {
+  Passage,
+  ScriptureProvider,
+  Translation,
+  TranslationCatalog,
+  TranslationPreferenceStore,
+} from "../src/core/scripture";
 
 type FakeParagraph = { text: string; revision: number };
 type FakeAnnotation = { paragraphId: string; candidate: ReferenceCandidate };
@@ -258,9 +266,17 @@ function sharedBrowserStore(initial: unknown = []): {
 function controllerFor(
   word: FakeWordGateway,
   ownership: AnnotationOwnership = new MemoryAnnotationOwnership(),
+  scripture?: ScriptureProvider,
+  preference?: TranslationPreferenceStore,
 ): { controller: Vfw010Controller; states: Vfw010State[] } {
   const states: Vfw010State[] = [];
-  const controller = new Vfw010Controller(word, (state) => states.push({ ...state }), ownership);
+  const controller = new Vfw010Controller(
+    word,
+    (state) => states.push({ ...state }),
+    ownership,
+    scripture,
+    preference,
+  );
   return { controller, states };
 }
 
@@ -313,6 +329,14 @@ describe("VFW-010 interaction kernel", () => {
     expect(candidatesForParagraph(output)).toMatchObject([{ from: 0, sourceText: "John 3:16" }]);
     expect(candidatesForParagraph(output)).toHaveLength(1);
     expect(word.replaceCalls).toBe(1);
+  });
+
+  it("excludes an inserted NASB citation while continuing to detect ordinary references", () => {
+    const output = "John 1:1; text (John 3:16, NASB) and John 3:17.";
+    expect(candidatesForParagraph(output).map((candidate) => candidate.sourceText)).toEqual([
+      "John 1:1",
+      "John 3:17",
+    ]);
   });
 
   it("refuses stale text after preview and clears its host annotation without replacing", async () => {
@@ -978,6 +1002,250 @@ describe("VFW-010 interaction kernel", () => {
   });
 });
 
+const dbsTranslations: Translation[] = [
+  {
+    id: "ENGTEST",
+    citationLabel: "TEST",
+    name: "DBS Test Bible",
+    attribution: "DBS Test Bible (TEST): DBS fixture copyright.",
+  },
+  {
+    id: "ENGNASB",
+    citationLabel: "NASB",
+    name: "New American Standard Bible",
+    attribution: "New American Standard Bible (NASB): © The Lockman Foundation",
+  },
+];
+
+class RecordedScriptureProvider implements ScriptureProvider {
+  public readonly calls: Array<{
+    reference: Parameters<ScriptureProvider["getPassage"]>[0];
+    translationId: string;
+    signal?: AbortSignal;
+  }> = [];
+  public clearCalls = 0;
+  public failCatalog = false;
+  public failPassage = false;
+  private deferred: {
+    started: () => void;
+    passage: Promise<void>;
+  } | undefined;
+
+  public async listTranslations(): Promise<TranslationCatalog> {
+    if (this.failCatalog) throw new Error("DBS catalog fixture unavailable.");
+    return { translations: dbsTranslations, cached: false };
+  }
+
+  public async getPassage(
+    reference: Parameters<ScriptureProvider["getPassage"]>[0],
+    translationId: string,
+    signal?: AbortSignal,
+  ): Promise<Passage> {
+    this.calls.push({ reference: { ...reference }, translationId, signal });
+    const deferred = this.deferred;
+    this.deferred = undefined;
+    if (deferred) {
+      deferred.started();
+      await deferred.passage;
+    }
+    if (this.failPassage) throw new Error("DBS fixture unavailable.");
+    const translation = dbsTranslations.find((item) => item.id === translationId);
+    if (!translation) throw new Error("Unknown test translation.");
+    return {
+      reference,
+      display: `${reference.bookName} ${reference.chapter}:${reference.verseStart}${
+        reference.verseEnd === undefined ? "" : `-${reference.verseEnd}`
+      }`,
+      translationId,
+      citationLabel: translation.citationLabel,
+      translationName: translation.name,
+      attribution: translation.attribution,
+      text: `DBS test verse ${reference.verseStart} for ${reference.bookId}.`,
+      cached: false,
+    };
+  }
+
+  public async clearCache(): Promise<void> { this.clearCalls += 1; }
+
+  public deferNextPassage(): { started: Promise<void>; release: () => void } {
+    let markStarted!: () => void;
+    let release!: () => void;
+    const started = new Promise<void>((resolve) => { markStarted = resolve; });
+    const passage = new Promise<void>((resolve) => { release = resolve; });
+    this.deferred = { started: markStarted, passage };
+    return { started, release };
+  }
+}
+
+describe("VFW-020 provider integration", () => {
+  it("defaults to NASB, sends coordinates only, and inserts passage/citation/attribution in one replacement", async () => {
+    const word = new FakeWordGateway("paragraph-1", "Read John 3:16.");
+    const scripture = new RecordedScriptureProvider();
+    const { controller } = controllerFor(word, new MemoryAnnotationOwnership(), scripture);
+    await controller.start();
+    expect(controller.getState()).toMatchObject({
+      catalogPhase: "ready",
+      selectedTranslationId: "ENGNASB",
+      canSelectTranslation: true,
+    });
+
+    await word.change("paragraph-1", "Read John 3:16.");
+    const [annotationId] = word.annotations.keys();
+    await word.activate(annotationId!);
+    expect(controller.getState()).toMatchObject({
+      phase: "preview",
+      title: "Preview ready",
+      preview: {
+        heading: "John 3:16 · NASB",
+        text: "DBS test verse 16 for JHN.",
+        attribution: "New American Standard Bible (NASB): © The Lockman Foundation",
+        translationId: "ENGNASB",
+      },
+    });
+    expect(scripture.calls).toMatchObject([{
+      reference: { bookId: "JHN", bookName: "John", chapter: 3, verseStart: 16 },
+      translationId: "ENGNASB",
+    }]);
+    expect(JSON.stringify(scripture.calls[0]?.reference)).not.toContain("Read John");
+
+    await controller.insertSelected();
+    expect(word.paragraphs.get("paragraph-1")?.text).toBe(
+      "Read DBS test verse 16 for JHN. (John 3:16, NASB)\n"
+      + "New American Standard Bible (NASB): © The Lockman Foundation.",
+    );
+    expect(word.replaceCalls).toBe(1);
+  });
+
+  it("honors a saved authorized translation and remembers an explicit change", async () => {
+    const word = new FakeWordGateway("paragraph-1", "Read John 3:16.");
+    const scripture = new RecordedScriptureProvider();
+    const preference = new MemoryTranslationPreference("ENGTEST");
+    const { controller } = controllerFor(
+      word,
+      new MemoryAnnotationOwnership(),
+      scripture,
+      preference,
+    );
+    await controller.start();
+    expect(controller.getState().selectedTranslationId).toBe("ENGTEST");
+    await controller.selectTranslation("ENGNASB");
+    await expect(preference.load()).resolves.toBe("ENGNASB");
+  });
+
+  it("rejects a passage result when Word changed while DBS was responding", async () => {
+    const word = new FakeWordGateway("paragraph-1", "Read John 3:16.");
+    const scripture = new RecordedScriptureProvider();
+    const { controller } = controllerFor(word, new MemoryAnnotationOwnership(), scripture);
+    await controller.start();
+    await word.change("paragraph-1", "Read John 3:16.");
+    const [annotationId] = word.annotations.keys();
+    const deferred = scripture.deferNextPassage();
+    const activation = word.activate(annotationId!);
+    await deferred.started;
+    await word.mutateWithoutEvent("paragraph-1", "Read John 3:15.");
+    deferred.release();
+    await activation;
+
+    expect(controller.getState()).toMatchObject({
+      phase: "watching",
+      title: "Writing changed before insertion",
+      canInsert: false,
+    });
+    expect(word.replaceCalls).toBe(0);
+    expect(word.paragraphs.get("paragraph-1")?.text).toBe("Read John 3:15.");
+  });
+
+  it("aborts and ignores an old preview when the translation changes", async () => {
+    const word = new FakeWordGateway("paragraph-1", "Read John 3:16.");
+    const scripture = new RecordedScriptureProvider();
+    const { controller } = controllerFor(word, new MemoryAnnotationOwnership(), scripture);
+    await controller.start();
+    await word.change("paragraph-1", "Read John 3:16.");
+    const [annotationId] = word.annotations.keys();
+    const deferred = scripture.deferNextPassage();
+    const activation = word.activate(annotationId!);
+    await deferred.started;
+    const requestSignal = scripture.calls[0]?.signal;
+    await controller.selectTranslation("ENGTEST");
+    expect(requestSignal?.aborted).toBe(true);
+    deferred.release();
+    await activation;
+
+    expect(controller.getState()).toMatchObject({
+      phase: "watching",
+      selectedTranslationId: "ENGTEST",
+      canInsert: false,
+    });
+    expect(controller.getState().preview).toBeUndefined();
+  });
+
+  it("aborts an in-flight preview before clearing local Scripture content", async () => {
+    const word = new FakeWordGateway("paragraph-1", "Read John 3:16.");
+    const scripture = new RecordedScriptureProvider();
+    const { controller } = controllerFor(word, new MemoryAnnotationOwnership(), scripture);
+    await controller.start();
+    await word.change("paragraph-1", "Read John 3:16.");
+    const [annotationId] = word.annotations.keys();
+    const deferred = scripture.deferNextPassage();
+    const activation = word.activate(annotationId!);
+    await deferred.started;
+
+    await controller.clearScriptureCache();
+    expect(scripture.calls[0]?.signal?.aborted).toBe(true);
+    expect(scripture.clearCalls).toBe(1);
+    expect(controller.getState()).toMatchObject({
+      title: "Local Scripture cache cleared",
+      canInsert: false,
+    });
+    deferred.release();
+    await activation;
+    expect(controller.getState().preview).toBeUndefined();
+  });
+
+  it("keeps prose and detection intact when DBS fails and exposes cache clearing", async () => {
+    const word = new FakeWordGateway("paragraph-1", "Read John 3:16.");
+    const scripture = new RecordedScriptureProvider();
+    scripture.failPassage = true;
+    const { controller } = controllerFor(word, new MemoryAnnotationOwnership(), scripture);
+    await controller.start();
+    await word.change("paragraph-1", "Read John 3:16.");
+    const [annotationId] = word.annotations.keys();
+    await word.activate(annotationId!);
+
+    expect(controller.getState()).toMatchObject({
+      title: "Scripture text is unavailable",
+      canInsert: false,
+    });
+    expect(word.paragraphs.get("paragraph-1")?.text).toBe("Read John 3:16.");
+    expect(word.annotations.has(annotationId!)).toBe(true);
+    await controller.clearScriptureCache();
+    expect(scripture.clearCalls).toBe(1);
+    expect(controller.getState().title).toBe("Local Scripture cache cleared");
+  });
+
+  it("starts local Word detection even when the translation catalog is offline", async () => {
+    const word = new FakeWordGateway("paragraph-1", "Read John 3:16.");
+    const scripture = new RecordedScriptureProvider();
+    scripture.failCatalog = true;
+    const { controller } = controllerFor(word, new MemoryAnnotationOwnership(), scripture);
+    await controller.start();
+    expect(controller.getState()).toMatchObject({
+      catalogPhase: "unavailable",
+      title: "Scripture service is unavailable",
+    });
+
+    await word.change("paragraph-1", "Read John 3:16.");
+    expect(word.annotations.size).toBe(1);
+    const [annotationId] = word.annotations.keys();
+    await word.activate(annotationId!);
+    expect(controller.getState()).toMatchObject({
+      title: "Scripture text needs a connection",
+      canInsert: false,
+    });
+    expect(scripture.calls).toHaveLength(0);
+  });
+});
+
 describe("replacement and task-pane contracts", () => {
   it("only permits Created annotations to cross the Word replacement boundary", () => {
     expect(isReplaceableAnnotationState("Created")).toBe(true);
@@ -996,7 +1264,7 @@ describe("replacement and task-pane contracts", () => {
     })).toMatchObject({
       statusKind: "ready",
       preview: { hidden: true },
-      insert: { disabled: true, label: "Insert test passage" },
+      insert: { disabled: true, label: "Insert passage" },
       cancel: { disabled: true },
     });
     expect(taskPaneView({
@@ -1005,7 +1273,11 @@ describe("replacement and task-pane contracts", () => {
       detail: "No request.",
       canInsert: true,
       canCancel: true,
-      preview: { heading: "John 3:16", text: "Fake test data.", insertText: "Fake test data." },
+      preview: {
+        heading: "John 3:16", text: "Fake test data.", attribution: "Local test data.",
+        insertText: "Fake test data.", translationId: "VFW-010-FAKE",
+        translationName: "VFW-010 test text", citationLabel: "VFW-010 test text", cached: false,
+      },
     })).toMatchObject({
       preview: { hidden: false, heading: "John 3:16" },
       insert: { disabled: false, label: "Insert test passage" },
@@ -1264,6 +1536,8 @@ class FakeElement {
   public textContent = "";
   public hidden = false;
   public disabled = false;
+  public value = "";
+  public children: FakeElement[] = [];
   public focusCalls = 0;
   private readonly listeners = new Map<string, () => void>();
 
@@ -1278,6 +1552,14 @@ class FakeElement {
   public click(): void {
     this.listeners.get("click")?.();
   }
+
+  public change(): void {
+    this.listeners.get("change")?.();
+  }
+
+  public replaceChildren(...children: FakeElement[]): void {
+    this.children = children;
+  }
 }
 
 describe("task-pane DOM harness", () => {
@@ -1287,6 +1569,9 @@ describe("task-pane DOM harness", () => {
     expect(source).toContain('name="color-scheme" content="light dark"');
     expect(source).toMatch(/class="status-card"[^>]*aria-live="polite"/u);
     expect(source).toMatch(/id="preview-card"[^>]*aria-live="polite"/u);
+    expect(source).toContain('id="preview-attribution"');
+    expect(source).toContain('id="translation-select"');
+    expect(source).toContain('id="clear-cache-button"');
     expect(source).toContain('id="cancel-button"');
     expect(styles).toMatch(/color-scheme:\s*light dark/u);
     expect(styles).toContain("@media (prefers-color-scheme: dark)");
@@ -1297,22 +1582,46 @@ describe("task-pane DOM harness", () => {
     const elements = new Map<string, FakeElement>([
       [".status-card", new FakeElement()], ["#status-title", new FakeElement()], ["#status-detail", new FakeElement()],
       ["#preview-card", new FakeElement()], ["#preview-heading", new FakeElement()], ["#preview-text", new FakeElement()],
-      ["#insert-button", new FakeElement()], ["#cancel-button", new FakeElement()],
+      ["#preview-attribution", new FakeElement()], ["#insert-button", new FakeElement()], ["#cancel-button", new FakeElement()],
+      ["#translation-select", new FakeElement()], ["#clear-cache-button", new FakeElement()],
     ]);
-    vi.stubGlobal("document", { querySelector: (selector: string) => elements.get(selector) ?? null });
+    vi.stubGlobal("document", {
+      querySelector: (selector: string) => elements.get(selector) ?? null,
+      createElement: () => new FakeElement(),
+    });
     try {
       const pane = mountTaskPane();
       let cancellations = 0;
+      let selectedTranslation = "";
+      let cacheClears = 0;
       pane.onCancel(async () => { cancellations += 1; });
+      pane.onTranslationChange(async (translationId) => { selectedTranslation = translationId; });
+      pane.onClearCache(async () => { cacheClears += 1; });
       pane.render({
         phase: "preview", title: "Preview", detail: "Fake", canInsert: true, canCancel: true,
-        preview: { heading: "John 3:16", text: "Fake", insertText: "Fake" },
+        catalogPhase: "ready", translations: dbsTranslations, selectedTranslationId: "ENGNASB",
+        canSelectTranslation: true, canClearCache: true,
+        preview: {
+          heading: "John 3:16", text: "Fake", attribution: "Local test data.", insertText: "Fake",
+          translationId: "VFW-010-FAKE", translationName: "VFW-010 test text",
+          citationLabel: "VFW-010 test text", cached: false,
+        },
       });
       elements.get("#cancel-button")?.click();
       await Promise.resolve();
       expect(cancellations).toBe(1);
       expect(elements.get("#preview-card")?.hidden).toBe(false);
+      expect(elements.get("#preview-attribution")?.textContent).toBe("Local test data.");
       expect(elements.get("#insert-button")?.disabled).toBe(false);
+      expect(elements.get("#translation-select")?.children).toHaveLength(2);
+      expect(elements.get("#translation-select")?.value).toBe("ENGNASB");
+      expect(elements.get("#translation-select")?.disabled).toBe(false);
+      elements.get("#translation-select")!.value = "ENGTEST";
+      elements.get("#translation-select")?.change();
+      elements.get("#clear-cache-button")?.click();
+      await Promise.resolve();
+      expect(selectedTranslation).toBe("ENGTEST");
+      expect(cacheClears).toBe(1);
 
       pane.render({ phase: "watching", title: "Refused", detail: "No change", canInsert: false, canCancel: false, focusTarget: "status" });
       expect(elements.get("#status-title")?.focusCalls).toBe(1);
@@ -1324,7 +1633,14 @@ describe("task-pane DOM harness", () => {
       expect(elements.get("#status-title")?.focusCalls).toBe(2);
 
       pane.onInsert(async () => { throw new Error("UI action failure"); });
-      pane.render({ phase: "preview", title: "Preview", detail: "Fake", canInsert: true, canCancel: true, preview: { heading: "John", text: "Fake", insertText: "Fake" } });
+      pane.render({
+        phase: "preview", title: "Preview", detail: "Fake", canInsert: true, canCancel: true,
+        preview: {
+          heading: "John", text: "Fake", attribution: "Local test data.", insertText: "Fake",
+          translationId: "VFW-010-FAKE", translationName: "VFW-010 test text",
+          citationLabel: "VFW-010 test text", cached: false,
+        },
+      });
       elements.get("#insert-button")?.click();
       await Promise.resolve();
       expect(elements.get(".status-card")?.dataset.kind).toBe("blocked");

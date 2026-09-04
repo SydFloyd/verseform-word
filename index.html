@@ -29,14 +29,26 @@
         </div>
       </section>
 
+      <section class="translation-panel" aria-labelledby="translation-heading">
+        <h2 id="translation-heading">Scripture translation</h2>
+        <label for="translation-select">Authorized DBS translation</label>
+        <select id="translation-select" disabled>
+          <option value="">Loading translations…</option>
+        </select>
+        <button id="clear-cache-button" class="secondary-button compact-button" type="button" disabled>
+          Clear local Scripture cache
+        </button>
+      </section>
+
       <section id="preview-card" class="preview-card" aria-labelledby="preview-heading" aria-live="polite" aria-atomic="true" hidden>
         <h2 id="preview-heading"></h2>
         <p id="preview-text"></p>
+        <p id="preview-attribution" class="attribution"></p>
       </section>
 
       <div class="actions">
         <button id="insert-button" type="button" disabled>
-          Insert test passage
+          Insert passage
         </button>
         <button id="cancel-button" class="secondary-button" type="button" disabled>
           Clear selection
@@ -44,11 +56,10 @@
       </div>
 
       <section aria-labelledby="slice-heading">
-        <h2 id="slice-heading">VFW-010 host proof</h2>
+        <h2 id="slice-heading">Private by design</h2>
         <p>
-          This provider-free slice detects locally and uses clearly labeled test data.
-          It never bundles Scripture or contacts DBS. The task pane is the accessible
-          preview and Insert fallback for WordApi 1.7.
+          Detection stays in Word. A preview sends only the selected translation,
+          book, and chapter coordinates to DBS—never your document prose or file name.
         </p>
       </section>
 

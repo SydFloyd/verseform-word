@@ -44,7 +44,7 @@ The kernel owns one canonical state with five regions:
 - **paragraphs:** revision and redacted structural identity for paragraphs currently carrying Verseform annotations; never a persisted copy of document prose.
 - **annotations:** annotation ID → paragraph ID, source text, normalized reference, source range, and paragraph revision; the controller owns the enclosing runtime generation.
 - **scripture:** catalog, preferred/effective translation, request stamp, bounded preview result, and failure.
-- **ui:** selected annotation, task-pane phase, fake host-proof preview, and actionable status.
+- **ui:** selected annotation, task-pane phase, bounded Scripture preview, and actionable status.
 
 Events describe facts; effects request work. Each task-pane runtime binds handlers under a monotonically increasing generation and returns a stop handle that removes those exact handlers. Delayed events from a stopped generation are ignored. Paragraph revisions and translation IDs stamp annotation actions; future provider effects also carry their own request generation. Results are ignored unless every applicable stamp still matches.
 
@@ -81,11 +81,13 @@ Verseform's English parser is the initial behavioral reference because it alread
 
 ## Scripture boundary
 
-The DBS adapter exposes two operations: list authorized translations and fetch one normalized chapter. It validates identifiers before URL construction, uses HTTPS only, bounds time and body size, parses JSON as untrusted input, normalizes verse text, and selects the requested verse range locally.
+The DBS adapter exposes two operations: list authorized translations and fetch one normalized chapter. It validates identifiers before URL construction, uses HTTPS GET only with credentials omitted and no referrer, allows only the `https://arc.dbs.org/api/bible-text/` catalog and encoded translation/book/chapter paths, applies an eight-second timeout, limits catalog responses to 8 MiB and chapter responses to 2 MiB, parses JSON as untrusted input, validates every verse key against the expected DBS section-book code and chapter, normalizes verse text, and selects the requested verse range locally. A DBS singleton empty object is an unavailable chapter, not executable or displayable content. Text normalization collapses provider newlines, repairs glued punctuation boundaries, and removes a conservative trailing title-case section heading; recorded James payload regressions own those rules. The only BrowserBible detector artifact incorporated in VFW-020 is its static 66-book section-code table, pinned locally with the upstream MIT license in `NOTICE.md`; no detector runtime or DOM behavior enters the add-in.
 
-Detection never calls this port. Hover or activation may start a cancellable request. A replacement plan is accepted only after rereading the Word paragraph and proving its recorded source slice is unchanged. No WEB fallback exists.
+Detection never calls this port. Activation may start a cancellable request; best-effort hover uses the same guarded path only when Word delivers it. Translation changes, paragraph changes, cancellation, and runtime stop invalidate the request stamp, and a result is accepted only when the annotation, paragraph revision/source, translation, and request generation still match. A replacement plan is accepted only after rereading the Word paragraph and proving its recorded source slice is unchanged. No WEB or other fallback Bible exists.
 
-DBS cache permission is confirmed for this add-in. VFW-010 remains provider-free and needs no persistent Scripture cache. VFW-020 may add one local adapter that stores only authorized catalog/chapter responses after its origin, age, byte, entry, schema, clear, and removal bounds have executable proof; document prose and identity are never cache inputs.
+DBS cache permission is confirmed for this add-in. The VFW-020 browser adapter stores only schema-validated catalog/chapter response bodies in a separate version-one local store: at most 65 entries and 4 MiB total, with a 24-hour catalog TTL and seven-day chapter TTL. Individual responses retain the transport's 8 MiB/2 MiB limits; total-store pruning may therefore decline to retain a large otherwise-valid response without affecting live use. Expired, future-dated, malformed, duplicate, or over-limit state is discarded; quota failures do not block live results; and the task pane exposes a clear action. The translation preference is stored separately and survives a cache clear. Document prose, file/document identity, annotations, accounts, and request history are never cache inputs.
+
+The catalog is the authorization boundary: a passage request is refused until the selected identifier matches a validated catalog entry. The selected saved entry is restored when present; otherwise `ENGNASB`, another unambiguous NASB entry, or finally the first valid catalog entry is selected. The task pane shows abbreviation plus full title and whether a preview came from DBS or local cache. One explicit Word replacement inserts normalized passage, editable parenthetical citation, and visible editable provider attribution; generated citations are excluded from future detection.
 
 ## Manifest and hosting
 
@@ -98,7 +100,7 @@ The task pane declares `color-scheme: light dark` in its document and root CSS, 
 ## Proof economy
 
 - Pure tests own parser, canon, false positives, delimiters, freshness, and insertion text.
-- Fake ports own cancellation, stale results, translation changes, duplicate annotations, and provider failures.
+- Fake ports own cancellation, stale results, translation changes, duplicate annotations, provider failures, and cache/storage edge cases.
 - Browser tests own the task-pane state and accessibility without pretending to be Word.
 - Word on the web owns annotation offsets/events, exact replacement, Undo, task-pane lifecycle, and subscription behavior.
 - Word for Windows repeats only the cross-host contract after the online flow is stable.

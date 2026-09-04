@@ -1,42 +1,73 @@
 import { isReferenceFresh, type AnnotatedReference } from "../core/freshness";
 import type { ReferenceCandidate } from "../core/reference";
+import {
+  passageDisplay,
+  previewForPassage,
+  selectInitialTranslation,
+  type ScripturePreview,
+  type ScriptureProvider,
+  type Translation,
+  type TranslationPreferenceStore,
+} from "../core/scripture";
 import type { AnnotationRemovalResult, ReplacementResult, WordGateway, WordHostHandlers, WordRuntime } from "../office/gateway";
+import { MemoryTranslationPreference } from "../adapters/translationPreference";
 import {
   MemoryAnnotationOwnership,
   type AnnotationOwnership,
 } from "./annotationOwnership";
-import { annotationForCandidate, candidatesForParagraph, fakePreviewFor, type FakePreview, type ParagraphSnapshot, VFW010_TRANSLATION } from "./interaction";
+import {
+  annotationForCandidate,
+  candidatesForParagraph,
+  fakePreviewFor,
+  LocalProofScriptureProvider,
+  type ParagraphSnapshot,
+  VFW010_TRANSLATION,
+} from "./interaction";
 
-export type Vfw010Phase = "starting" | "watching" | "preview" | "inserting" | "blocked" | "complete";
+export type VerseformPhase = "starting" | "watching" | "loading-preview" | "preview" | "inserting" | "blocked" | "complete";
 export type FocusTarget = "status";
+export type CatalogPhase = "loading" | "ready" | "unavailable";
 
-export type Vfw010State = {
-  phase: Vfw010Phase;
+export type VerseformState = {
+  phase: VerseformPhase;
   title: string;
   detail: string;
   selectedAnnotationId?: string;
-  preview?: FakePreview;
+  preview?: ScripturePreview;
   canInsert: boolean;
   canCancel: boolean;
   focusTarget?: FocusTarget;
+  catalogPhase?: CatalogPhase;
+  translations?: readonly Translation[];
+  selectedTranslationId?: string;
+  canSelectTranslation?: boolean;
+  canClearCache?: boolean;
 };
 
-export type StateListener = (state: Readonly<Vfw010State>) => void;
+/** Historical aliases retained for the completed VFW-010 proof suite. */
+export type Vfw010Phase = VerseformPhase;
+export type Vfw010State = VerseformState;
 
-const initialState: Vfw010State = {
+export type StateListener = (state: Readonly<VerseformState>) => void;
+
+const initialState: VerseformState = {
   phase: "starting",
   title: "Preparing local detection…",
   detail: "Verseform is registering Word events. No document text leaves Word.",
   canInsert: false,
   canCancel: false,
+  catalogPhase: "loading",
+  translations: [],
+  canSelectTranslation: false,
+  canClearCache: false,
 };
 
 /**
- * Owns VFW-010's finite task-pane lifetime. Paragraph text stays only in this
+ * Owns Verseform's finite task-pane lifetime. Paragraph text stays only in this
  * instance's in-memory annotation map and is forgotten on stop. Event handlers
  * capture a runtime generation, so delayed events from a stopped pane do nothing.
  */
-export class Vfw010Controller {
+export class VerseformController {
   private readonly annotations = new Map<string, AnnotatedReference>();
   /**
    * Bounded, runtime-only evidence for Word Undo. It never enters the browser
@@ -50,7 +81,7 @@ export class Vfw010Controller {
    */
   private readonly priorOwnedAnnotationIds = new Set<string>();
   private readonly paragraphRevisions = new Map<string, number>();
-  private state: Vfw010State = initialState;
+  private state: VerseformState = initialState;
   private operation = Promise.resolve();
   private runtime: WordRuntime | undefined;
   private starting: Promise<void> | undefined;
@@ -58,15 +89,23 @@ export class Vfw010Controller {
   private active = false;
   private runtimeGeneration = 0;
   private actionGeneration = 0;
+  private previewGeneration = 0;
+  private previewAbort: AbortController | undefined;
+  private catalogAbort: AbortController | undefined;
   private pendingInsert: { token: number; mutationStarted: boolean } | undefined;
+  private catalogPhase: CatalogPhase = "loading";
+  private translations: Translation[] = [];
+  private selectedTranslationId: string | undefined;
 
   public constructor(
     private readonly word: WordGateway,
     private readonly onState: StateListener,
     private readonly ownership: AnnotationOwnership = new MemoryAnnotationOwnership(),
+    private readonly scripture: ScriptureProvider = new LocalProofScriptureProvider(),
+    private readonly preference: TranslationPreferenceStore = new MemoryTranslationPreference(),
   ) {}
 
-  public getState(): Readonly<Vfw010State> {
+  public getState(): Readonly<VerseformState> {
     return this.state;
   }
 
@@ -113,10 +152,11 @@ export class Vfw010Controller {
           this.publish({
             phase: "watching",
             title: "Watching for completed references",
-            detail: "Type a supported English reference followed by a delimiter. Preview and insertion use local VFW-010 test data only.",
+            detail: "Type a supported English reference followed by a delimiter. Translation access is loading separately.",
             canInsert: false,
             canCancel: false,
           });
+          await this.loadCatalog(generation);
         } catch {
           if (this.isCurrent(generation)) {
             this.active = false;
@@ -158,6 +198,11 @@ export class Vfw010Controller {
     ])];
     this.runtimeGeneration += 1;
     this.actionGeneration += 1;
+    this.previewGeneration += 1;
+    this.previewAbort?.abort();
+    this.previewAbort = undefined;
+    this.catalogAbort?.abort();
+    this.catalogAbort = undefined;
     this.pendingInsert = undefined;
     this.active = false;
     this.runtime = undefined;
@@ -191,6 +236,7 @@ export class Vfw010Controller {
       this.actionGeneration += 1;
       this.pendingInsert = undefined;
     }
+    this.cancelPreviewRequest();
     if (!this.state.selectedAnnotationId) return;
     this.publish({
       phase: "watching",
@@ -200,6 +246,61 @@ export class Vfw010Controller {
       canCancel: false,
       focusTarget: "status",
     });
+  }
+
+  public async selectTranslation(translationId: string): Promise<void> {
+    if (this.pendingInsert) return;
+    const selected = this.translations.find((translation) => translation.id === translationId);
+    if (!selected || selected.id === this.selectedTranslationId) return;
+    this.selectedTranslationId = selected.id;
+    this.cancelPreviewRequest();
+    this.publish({
+      phase: "watching",
+      title: `${selected.citationLabel} selected`,
+      detail: `${selected.name} will be used for the next preview. No document text was sent.`,
+      canInsert: false,
+      canCancel: false,
+      focusTarget: "status",
+    });
+    try {
+      await this.preference.save(selected.id);
+    } catch {
+      if (this.selectedTranslationId === selected.id) {
+        this.publish({
+          phase: "watching",
+          title: `${selected.citationLabel} selected for this pane`,
+          detail: "The translation works now, but Verseform could not remember it on this device.",
+          canInsert: false,
+          canCancel: false,
+          focusTarget: "status",
+        });
+      }
+    }
+  }
+
+  public async clearScriptureCache(): Promise<void> {
+    if (this.pendingInsert) return;
+    this.cancelPreviewRequest();
+    try {
+      await this.scripture.clearCache();
+      this.publish({
+        phase: "watching",
+        title: "Local Scripture cache cleared",
+        detail: "Saved provider responses were removed. Your translation preference was kept.",
+        canInsert: false,
+        canCancel: false,
+        focusTarget: "status",
+      });
+    } catch {
+      this.publish({
+        phase: "watching",
+        title: "Local Scripture cache was not cleared",
+        detail: "No document text changed. Reopen the task pane and try again.",
+        canInsert: false,
+        canCancel: false,
+        focusTarget: "status",
+      });
+    }
   }
 
   public async insertSelected(): Promise<void> {
@@ -212,6 +313,19 @@ export class Vfw010Controller {
         phase: "watching",
         title: "Choose a reference first",
         detail: "Activate a Verseform annotation in Word before inserting.",
+        canInsert: false,
+        canCancel: false,
+        focusTarget: "status",
+      });
+      return;
+    }
+    if (!this.selectedTranslationId
+      || preview.translationId !== this.selectedTranslationId
+      || annotation.translationId !== preview.translationId) {
+      this.publish({
+        phase: "watching",
+        title: "Translation changed before insertion",
+        detail: "No text changed. Activate the reference again to load the selected translation.",
         canInsert: false,
         canCancel: false,
         focusTarget: "status",
@@ -236,7 +350,7 @@ export class Vfw010Controller {
         if (!this.isCurrent(generation) || !this.isActionCurrent(actionToken)) return;
         const current = await this.word.readParagraph(annotation.paragraphId);
         if (!this.isCurrent(generation) || !this.isActionCurrent(actionToken)) return;
-        if (!current || !this.isFresh(annotation, this.withKnownRevision(current))) {
+        if (!current || !this.isFresh(annotation, this.withKnownRevision(current), preview.translationId)) {
           await this.rejectStale(annotation.annotationId, actionToken);
           return;
         }
@@ -280,7 +394,11 @@ export class Vfw010Controller {
         });
       },
       onAnnotationActivated: async (annotationId) => {
-        await this.runEvent(generation, async () => this.activate(annotationId, generation));
+        let previewTask: Promise<void> | undefined;
+        await this.runEvent(generation, async () => {
+          previewTask = (await this.activate(annotationId, generation))?.previewTask;
+        });
+        await previewTask;
       },
       onAnnotationRemoved: async (annotationIds) => {
         await this.runEvent(generation, async () => {
@@ -351,6 +469,7 @@ export class Vfw010Controller {
       return;
     }
     if (this.state.selectedAnnotationId && oldIds.includes(this.state.selectedAnnotationId)) {
+      this.cancelPreviewRequest();
       this.publish({
         phase: "watching",
         title: "Reference changed",
@@ -424,7 +543,12 @@ export class Vfw010Controller {
         await this.removeHostAnnotations([annotationId], "retain");
         return;
       }
-      this.annotations.set(annotationId, annotationForCandidate(annotationId, snapshot, candidate));
+      this.annotations.set(annotationId, annotationForCandidate(
+        annotationId,
+        snapshot,
+        candidate,
+        this.selectedTranslationId ?? "DBS-PENDING",
+      ));
       marked += 1;
     }
 
@@ -433,7 +557,9 @@ export class Vfw010Controller {
       this.publish({
         phase: "watching",
         title: marked === 1 ? "Reference ready" : `${marked} references ready`,
-        detail: "Activate a Verseform annotation in Word to inspect the local host-proof preview.",
+        detail: this.selectedTranslationId
+          ? "Activate a Verseform annotation in Word to request its passage from DBS."
+          : "The reference was detected locally. Scripture text needs a connection before preview or insertion.",
         canInsert: false,
         canCancel: false,
       });
@@ -527,7 +653,10 @@ export class Vfw010Controller {
     return recovered;
   }
 
-  private async activate(annotationId: string, generation: number): Promise<void> {
+  private async activate(
+    annotationId: string,
+    generation: number,
+  ): Promise<{ previewTask: Promise<void> } | undefined> {
     let annotation = this.annotations.get(annotationId);
     if (!annotation) annotation = await this.restoreRetiredForActivation(annotationId, generation);
     if (!annotation) {
@@ -545,38 +674,63 @@ export class Vfw010Controller {
         canCancel: false,
         focusTarget: "status",
       });
-      return;
+      return undefined;
+    }
+
+    const translation = this.translations.find((item) => item.id === this.selectedTranslationId);
+    if (!translation) {
+      this.publish({
+        phase: "watching",
+        title: "Scripture text needs a connection",
+        detail: "Reference detection remains local. Reopen the task pane when DBS is available to preview or insert Scripture.",
+        canInsert: false,
+        canCancel: false,
+        focusTarget: "status",
+      });
+      return undefined;
     }
 
     const current = await this.word.readParagraph(annotation.paragraphId);
     if (!this.isCurrent(generation)) return;
-    if (!current || !this.isFresh(annotation, this.withKnownRevision(current))) {
+    const translatedAnnotation = { ...annotation, translationId: translation.id };
+    if (!current || !this.isFresh(
+      translatedAnnotation,
+      this.withKnownRevision(current),
+      translation.id,
+    )) {
       await this.rejectStale(annotation.annotationId);
-      return;
+      return undefined;
     }
-
-    const candidate = {
-      kind: "valid" as const,
-      from: annotation.range.from,
-      to: annotation.range.to,
-      sourceText: annotation.sourceText,
-      display: `${annotation.reference.bookName} ${annotation.reference.chapter}:${annotation.reference.verseStart}${annotation.reference.verseEnd === undefined ? "" : `-${annotation.reference.verseEnd}`}`,
-      matchKind: "exact" as const,
-      reference: annotation.reference,
-    };
+    this.annotations.set(annotationId, translatedAnnotation);
+    this.cancelPreviewRequest();
+    const requestToken = ++this.previewGeneration;
+    const abort = new AbortController();
+    this.previewAbort = abort;
     this.publish({
-      phase: "preview",
-      title: "Preview ready",
-      detail: "This is local VFW-010 test data. It is not Scripture text and no request was made.",
+      phase: "loading-preview",
+      title: `Loading ${translation.citationLabel}…`,
+      detail: `Requesting only ${passageDisplay(annotation.reference)} coordinates from DBS. Document prose stays in Word.`,
       selectedAnnotationId: annotationId,
-      preview: fakePreviewFor(candidate),
-      canInsert: true,
+      canInsert: false,
       canCancel: true,
     });
+    return {
+      previewTask: this.loadPreview(
+        translatedAnnotation,
+        translation,
+        requestToken,
+        generation,
+        abort.signal,
+      ),
+    };
   }
 
-  private isFresh(annotation: AnnotatedReference, current: ParagraphSnapshot): boolean {
-    return isReferenceFresh(annotation, current.text, current.revision, VFW010_TRANSLATION.id);
+  private isFresh(
+    annotation: AnnotatedReference,
+    current: ParagraphSnapshot,
+    expectedTranslationId = this.selectedTranslationId ?? "",
+  ): boolean {
+    return isReferenceFresh(annotation, current.text, current.revision, expectedTranslationId);
   }
 
   private async handleReplacement(
@@ -585,13 +739,19 @@ export class Vfw010Controller {
     actionToken: number,
   ): Promise<void> {
     if (result === "replaced") {
+      const insertedPreview = this.state.preview;
+      const localProof = insertedPreview?.translationId === VFW010_TRANSLATION.id;
       this.annotations.delete(annotation.annotationId);
       await this.retireAnnotation(annotation);
       this.finishAction(actionToken);
       this.publish({
         phase: "complete",
-        title: "VFW-010 test replacement inserted",
-        detail: "Use Word’s Undo command to restore the reference. The inserted text is local test data, not Scripture.",
+        title: localProof
+          ? "VFW-010 test replacement inserted"
+          : `${insertedPreview?.citationLabel ?? "Scripture"} passage inserted`,
+        detail: localProof
+          ? "Use Word’s Undo command to restore the reference. The inserted text is local test data, not Scripture."
+          : "The passage, editable citation, and provider attribution were inserted together. Use Word’s Undo command to restore the reference.",
         canInsert: false,
         canCancel: false,
         focusTarget: "status",
@@ -632,6 +792,7 @@ export class Vfw010Controller {
   }
 
   private async rejectStale(annotationId: string, actionToken?: number): Promise<void> {
+    this.cancelPreviewRequest();
     const cleaned = await this.discard(annotationId);
     if (actionToken !== undefined) {
       if (!this.isActionCurrent(actionToken)) return;
@@ -718,6 +879,136 @@ export class Vfw010Controller {
     return { ...paragraph, revision: this.paragraphRevisions.get(paragraph.paragraphId) ?? 0 };
   }
 
+  private async loadCatalog(generation: number): Promise<void> {
+    const abort = new AbortController();
+    this.catalogAbort = abort;
+    try {
+      const [catalog, savedPreference] = await Promise.all([
+        this.scripture.listTranslations(abort.signal),
+        this.preference.load().catch(() => undefined),
+      ]);
+      if (!this.isCurrent(generation) || abort.signal.aborted) return;
+      this.translations = [...catalog.translations];
+      const selected = selectInitialTranslation(this.translations, savedPreference);
+      this.selectedTranslationId = selected?.id;
+      this.catalogPhase = selected ? "ready" : "unavailable";
+      this.publish({
+        phase: "watching",
+        title: selected ? `${selected.citationLabel} is ready` : "No authorized translations are available",
+        detail: selected
+          ? `${selected.name} is selected${catalog.cached ? " from the bounded local cache" : " from DBS"}. Detection remains local.`
+          : "Reference detection remains local, but preview and insertion need an authorized DBS translation.",
+        canInsert: false,
+        canCancel: false,
+      });
+    } catch (error) {
+      if (!this.isCurrent(generation) || abort.signal.aborted) return;
+      this.translations = [];
+      this.selectedTranslationId = undefined;
+      this.catalogPhase = "unavailable";
+      this.publish({
+        phase: "watching",
+        title: "Scripture service is unavailable",
+        detail: error instanceof Error
+          ? `${error.message} Reference detection remains local; no document prose was sent.`
+          : "Reference detection remains local. Reopen the task pane when DBS is available.",
+        canInsert: false,
+        canCancel: false,
+        focusTarget: "status",
+      });
+    } finally {
+      if (this.catalogAbort === abort) this.catalogAbort = undefined;
+    }
+  }
+
+  private async loadPreview(
+    annotation: AnnotatedReference,
+    translation: Translation,
+    requestToken: number,
+    generation: number,
+    signal: AbortSignal,
+  ): Promise<void> {
+    try {
+      const passage = await this.scripture.getPassage(
+        annotation.reference,
+        translation.id,
+        signal,
+      );
+      if (!this.isPreviewCurrent(requestToken, generation, annotation.annotationId, translation.id)) return;
+      if (passage.translationId !== translation.id
+        || passage.display !== passageDisplay(annotation.reference)) {
+        throw new Error("DBS returned a passage for different coordinates.");
+      }
+      await this.serial(async () => {
+        if (!this.isPreviewCurrent(requestToken, generation, annotation.annotationId, translation.id)) return;
+        const current = await this.word.readParagraph(annotation.paragraphId);
+        if (!this.isPreviewCurrent(requestToken, generation, annotation.annotationId, translation.id)) return;
+        if (!current || !this.isFresh(annotation, this.withKnownRevision(current), translation.id)) {
+          await this.rejectStale(annotation.annotationId);
+          return;
+        }
+        const candidate: ReferenceCandidate = {
+          kind: "valid",
+          from: annotation.range.from,
+          to: annotation.range.to,
+          sourceText: annotation.sourceText,
+          display: passageDisplay(annotation.reference),
+          matchKind: "exact",
+          reference: annotation.reference,
+        };
+        const preview = translation.id === VFW010_TRANSLATION.id
+          ? fakePreviewFor(candidate)
+          : previewForPassage(passage);
+        this.previewAbort = undefined;
+        this.publish({
+          phase: "preview",
+          title: "Preview ready",
+          detail: `${translation.name}${passage.cached ? " · local cache" : " · DBS"}`,
+          selectedAnnotationId: annotation.annotationId,
+          preview,
+          canInsert: true,
+          canCancel: true,
+        });
+      });
+    } catch (error) {
+      if (signal.aborted || !this.isPreviewCurrent(
+        requestToken,
+        generation,
+        annotation.annotationId,
+        translation.id,
+      )) return;
+      this.previewAbort = undefined;
+      this.publish({
+        phase: "watching",
+        title: "Scripture text is unavailable",
+        detail: error instanceof Error
+          ? `${error.message} No document text changed.`
+          : "DBS could not provide this passage. No document text changed.",
+        canInsert: false,
+        canCancel: false,
+        focusTarget: "status",
+      });
+    }
+  }
+
+  private isPreviewCurrent(
+    requestToken: number,
+    generation: number,
+    annotationId: string,
+    translationId: string,
+  ): boolean {
+    return this.isCurrent(generation)
+      && requestToken === this.previewGeneration
+      && this.state.selectedAnnotationId === annotationId
+      && this.selectedTranslationId === translationId;
+  }
+
+  private cancelPreviewRequest(): void {
+    this.previewGeneration += 1;
+    this.previewAbort?.abort();
+    this.previewAbort = undefined;
+  }
+
   private isCurrent(generation: number): boolean {
     return this.active && generation === this.runtimeGeneration;
   }
@@ -780,8 +1071,18 @@ export class Vfw010Controller {
     return next;
   }
 
-  private publish(next: Vfw010State): void {
-    this.state = next;
+  private publish(next: VerseformState): void {
+    this.state = {
+      ...next,
+      catalogPhase: this.catalogPhase,
+      translations: this.translations,
+      ...(this.selectedTranslationId ? { selectedTranslationId: this.selectedTranslationId } : {}),
+      canSelectTranslation: this.catalogPhase === "ready" && next.phase !== "inserting",
+      canClearCache: this.catalogPhase !== "loading" && next.phase !== "inserting",
+    };
     this.onState(this.state);
   }
 }
+
+/** Compatibility export for VFW-010 tests and historical callers. */
+export { VerseformController as Vfw010Controller };
