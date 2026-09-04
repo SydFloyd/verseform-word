@@ -1,18 +1,13 @@
 import "./styles.css";
+import { BrowserAnnotationOwnership } from "./app/annotationOwnership";
+import { Vfw010Controller } from "./app/controller";
 import { inspectWordHost } from "./office/capabilities";
+import { OfficeWordGateway } from "./office/wordGateway";
+import { mountTaskPane } from "./ui/taskPane";
 
-const title = document.querySelector<HTMLElement>("#status-title");
-const detail = document.querySelector<HTMLElement>("#status-detail");
-const card = document.querySelector<HTMLElement>(".status-card");
-
-function renderStatus(kind: "ready" | "blocked" | "browser", heading: string, message: string): void {
-  if (!title || !detail || !card) return;
-  title.textContent = heading;
-  detail.textContent = message;
-  card.dataset.kind = kind;
-}
+const taskPane = mountTaskPane();
 if (typeof Office === "undefined") {
-  renderStatus(
+  taskPane.renderHostStatus(
     "browser",
     "Browser preview",
     "Open this task pane inside Word to test host capabilities.",
@@ -20,6 +15,20 @@ if (typeof Office === "undefined") {
 } else {
   Office.onReady(() => {
     const capability = inspectWordHost();
-    renderStatus(capability.kind, capability.title, capability.detail);
+    if (capability.kind === "blocked") {
+      taskPane.renderHostStatus("blocked", capability.title, capability.detail);
+      return;
+    }
+    const controller = new Vfw010Controller(
+      new OfficeWordGateway(),
+      taskPane.render,
+      new BrowserAnnotationOwnership(),
+    );
+    taskPane.onInsert(async () => controller.insertSelected());
+    taskPane.onCancel(async () => controller.clearSelection());
+    window.addEventListener("pagehide", () => {
+      void controller.stop();
+    }, { once: true });
+    void controller.start();
   });
 }

@@ -9,7 +9,7 @@ Verseform for Word helps a person remain inside Microsoft Word while inserting a
 1. While the Verseform add-in is active, Word reports a changed paragraph.
 2. After the user completes a supported reference and types a delimiter, Verseform scans only the relevant paragraph locally.
 3. A valid reference receives a temporary Word-native annotation. Invalid coordinates may receive restrained, explanatory feedback; ordinary prose stays untouched.
-4. Hovering or activating the annotation requests no text unless a preview or insertion is actually needed. The preferred experience shows an on-demand preview; the VFW-010 host spike decides whether that preview can be trustworthy in Word's native popup or must appear in the task pane.
+4. Hovering or activating the annotation requests no text unless a preview or insertion is actually needed. VFW-010 uses the task pane for its on-demand preview and explicit Insert action. It does not assume a native popup action: the installed Office.js contract places those APIs in WordApi 1.8, above this slice's WordApi 1.7 baseline.
 5. An explicit insertion action replaces exactly the activated reference with passage text followed by an editable citation.
 6. Before replacement, Verseform proves that the paragraph, source range, reference, and translation still match the request. Otherwise it does nothing and explains that the writing changed.
 7. The replacement is one Word transaction so Word's ordinary Undo restores the reference.
@@ -46,6 +46,7 @@ Verseform for Word helps a person remain inside Microsoft Word while inserting a
 - No Verseform account, advertising, analytics, telemetry, crash upload, AI prose processing, or background scan exists.
 - The production add-in is served over HTTPS from an owner-approved host. Hosting logs and retention must be disclosed.
 - Keyboard and screen-reader users can reach the task pane, understand status, preview a reference, insert it, cancel, and recover focus.
+- The task pane must declare and paint a matching light or dark canvas/text surface, and use paired system colors when Windows forced-colors mode is active; it must never rely on the host canvas for readable text.
 - DBS is credited clearly and no endorsement by Microsoft or DBS is implied without written approval.
 - Public distribution must use a production-supported manifest and pass Microsoft validation. The current unified Word manifest is not a production dependency while Microsoft labels it preview.
 

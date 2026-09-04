@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'none'; script-src 'self' https://appsforoffice.microsoft.com; style-src 'self'; img-src 'self' data:; connect-src https://arc.dbs.org;"
@@ -23,17 +24,31 @@
       <section class="status-card" aria-live="polite" aria-atomic="true">
         <span class="status-dot" aria-hidden="true"></span>
         <div>
-          <strong id="status-title">Connecting to Word…</strong>
+          <strong id="status-title" tabindex="-1">Connecting to Word…</strong>
           <p id="status-detail">Checking the document host and annotation support.</p>
         </div>
       </section>
 
-      <section aria-labelledby="next-heading">
-        <h2 id="next-heading">First walking slice</h2>
+      <section id="preview-card" class="preview-card" aria-labelledby="preview-heading" aria-live="polite" aria-atomic="true" hidden>
+        <h2 id="preview-heading"></h2>
+        <p id="preview-text"></p>
+      </section>
+
+      <div class="actions">
+        <button id="insert-button" type="button" disabled>
+          Insert test passage
+        </button>
+        <button id="cancel-button" class="secondary-button" type="button" disabled>
+          Clear selection
+        </button>
+      </div>
+
+      <section aria-labelledby="slice-heading">
+        <h2 id="slice-heading">VFW-010 host proof</h2>
         <p>
-          Verseform will detect a completed reference locally, mark it inside Word,
-          preview authorized DBS text on demand, and replace only the reference the
-          user explicitly activates.
+          This provider-free slice detects locally and uses clearly labeled test data.
+          It never bundles Scripture or contacts DBS. The task pane is the accessible
+          preview and Insert fallback for WordApi 1.7.
         </p>
       </section>
 

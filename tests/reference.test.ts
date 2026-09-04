@@ -35,6 +35,7 @@ describe("guarded insertion", () => {
     annotationId: "annotation-1",
     paragraphId: "paragraph-1",
     paragraphRevision: 4,
+    paragraphText: "Read John 3:16 today.",
     sourceText: "John 3:16",
     range: { from: 5, to: 14 },
     reference: {
@@ -49,6 +50,7 @@ describe("guarded insertion", () => {
   it("accepts only the same paragraph slice, revision, and translation", () => {
     expect(isReferenceFresh(annotation, "Read John 3:16 today.", 4, "ENGNASB")).toBe(true);
     expect(isReferenceFresh(annotation, "Read John 3:17 today.", 5, "ENGNASB")).toBe(false);
+    expect(isReferenceFresh(annotation, "Please read John 3:16 today.", 4, "ENGNASB")).toBe(false);
     expect(isReferenceFresh(annotation, "Read John 3:16 today.", 4, "ENGWEB")).toBe(false);
   });
 

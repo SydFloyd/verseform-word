@@ -1,17 +1,62 @@
 :root {
-  color: #25221d;
-  background: #f7f4ed;
+  color-scheme: light dark;
+  --canvas: #f7f4ed;
+  --text: #25221d;
+  --muted-text: #5f594e;
+  --surface: #fffdfa;
+  --border: #d9d1c2;
+  --accent: #2e7555;
+  --accent-strong: #245c44;
+  --accent-text: #ffffff;
+  --focus: #9c7a2b;
+  --disabled-surface: #ded7ca;
+  --disabled-text: #625d54;
+  --secondary-border: #766b59;
+  --secondary-hover: #eee8dc;
+  --ready: #2e7555;
+  --blocked: #a44235;
+  --neutral: #68707a;
+  background-color: var(--canvas);
+  color: var(--text);
   font-family: Aptos, "Segoe UI", sans-serif;
   font-synthesis: none;
 }
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: #1c1b1d;
+    --text: #f5f1ea;
+    --muted-text: #d4cec3;
+    --surface: #29272a;
+    --border: #9e968a;
+    --accent: #75c99c;
+    --accent-strong: #9cddb9;
+    --accent-text: #102218;
+    --focus: #f0ca73;
+    --disabled-surface: #48444a;
+    --disabled-text: #ddd6cb;
+    --secondary-border: #b9b0a4;
+    --secondary-hover: #3a373c;
+    --ready: #75c99c;
+    --blocked: #ff9b90;
+    --neutral: #b8c1ce;
+  }
+}
+
 * {
   box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  background-color: var(--canvas);
+  color: var(--text);
 }
 
 body {
   margin: 0;
   min-width: 260px;
-  background: #f7f4ed;
 }
 
 .shell {
@@ -44,7 +89,7 @@ h2 {
 }
 
 p {
-  color: #5f594e;
+  color: var(--muted-text);
   font-size: 13px;
   line-height: 1.55;
 }
@@ -59,9 +104,9 @@ p {
   grid-template-columns: auto 1fr;
   gap: 10px;
   padding: 14px;
-  border: 1px solid #d9d1c2;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #fffdfa;
+  background-color: var(--surface);
 }
 
 .status-card strong {
@@ -75,22 +120,99 @@ p {
   height: 9px;
   margin-top: 4px;
   border-radius: 50%;
-  background: #9c7a2b;
+  background-color: var(--focus);
 }
 
 .status-card[data-kind="ready"] .status-dot {
-  background: #2e7555;
+  background-color: var(--ready);
 }
 
 .status-card[data-kind="blocked"] .status-dot {
-  background: #a44235;
+  background-color: var(--blocked);
+}
+
+.status-card[data-kind="browser"] .status-dot {
+  background-color: var(--neutral);
+}
+
+.preview-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background-color: var(--surface);
+}
+
+.actions {
+  display: grid;
+  gap: 8px;
+}
+
+button {
+  min-height: 38px;
+  padding: 9px 12px;
+  border: 1px solid var(--accent-strong);
+  border-radius: 6px;
+  background-color: var(--accent);
+  color: var(--accent-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background-color: var(--accent-strong);
+}
+
+button:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+button:disabled {
+  border-color: var(--border);
+  background-color: var(--disabled-surface);
+  color: var(--disabled-text);
+  cursor: not-allowed;
+}
+
+.secondary-button:not(:disabled) {
+  border-color: var(--secondary-border);
+  background-color: var(--surface);
+  color: var(--text);
+}
+
+.secondary-button:hover:not(:disabled) {
+  background-color: var(--secondary-hover);
 }
 
 footer {
   padding-top: 14px;
-  border-top: 1px solid #ded7ca;
+  border-top: 1px solid var(--border);
 }
 
 footer p {
   font-size: 11px;
+}
+
+@media (forced-colors: active) {
+  :root {
+    --canvas: Canvas;
+    --text: CanvasText;
+    --muted-text: CanvasText;
+    --surface: Canvas;
+    --border: CanvasText;
+    --accent: ButtonFace;
+    --accent-strong: ButtonFace;
+    --accent-text: ButtonText;
+    --focus: Highlight;
+    --disabled-surface: Canvas;
+    --disabled-text: GrayText;
+    --secondary-border: ButtonText;
+    --secondary-hover: ButtonFace;
+    --ready: CanvasText;
+    --blocked: CanvasText;
+    --neutral: CanvasText;
+  }
 }
