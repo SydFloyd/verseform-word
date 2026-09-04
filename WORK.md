@@ -4,9 +4,10 @@ Updated: 2026-09-04
 
 ## Now
 
-- Stage: `VFW-000` project seed is complete locally.
+- Stage: `VFW-000` project seed is complete and published.
 - Active item: `VFW-010` is next — prove the real Word on the web annotation interaction before expanding the provider or multilingual surface.
 - Product name: **Verseform for Word**; repository name: `verseform-word`.
+- Public repository: `https://github.com/SydFloyd/verseform-word`.
 - Host baseline: one Office.js task-pane application and add-in-only XML manifest target Word on the web first and Word desktop later. WordApi 1.7 and a connected Microsoft 365 subscription are required for native annotations.
 - Trust baseline: detection is local; no Bible is bundled; preview/insertion may send only normalized coordinates to DBS; no document prose, telemetry, account, or crash upload leaves through Verseform.
 
