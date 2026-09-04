@@ -37,6 +37,7 @@ When authorities conflict, follow that order and repair the lower authority in t
 - No replacement without explicit activation. A stale paragraph, moved reference, changed translation, or superseded response cannot replace text.
 - Word owns document rendering, selection, undo, and annotation UI. Never emulate Word's editor in the task pane.
 - Remote text is bounded, schema-checked, normalized to plain text, and never injected as provider HTML.
+- Persistent provider caches are local, schema-versioned, age/byte/entry bounded, clearable, and contain no document prose or identity.
 - Required translation attribution remains attached to inserted text and visible to the user.
 - One source tree and add-in manifest should serve Word on the web and Word desktop wherever the required API set is supported.
 - No telemetry, crash upload, accounts, advertising, remote configuration, or background document scanning.

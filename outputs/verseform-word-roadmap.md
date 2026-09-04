@@ -13,6 +13,6 @@ Each item is one user outcome with behavior, failure handling, and proof. Status
 ## Scope gates
 
 - VFW-010 is a host feasibility gate. If stable Word APIs cannot identify and replace an exact annotated occurrence, change the interaction before provider breadth.
-- VFW-020 cannot persist Scripture until `D-010` is resolved.
+- VFW-020 may persist authorized provider responses only after cache age, byte, entry, schema, clear, and removal bounds are executable and no document prose enters the cache.
 - VFW-030 cannot claim a language without a language-specific corpus and Word offset proof.
-- VFW-040 cannot publish under DBS or choose a license/publisher identity until `D-008` and `D-011` are resolved.
+- VFW-040 cannot publish under DBS until DBS explicitly accepts that role and `D-011` resolves production hosting, support, and publisher identity.

@@ -30,6 +30,7 @@ Verseform for Word helps a person remain inside Microsoft Word while inserting a
 - No WEB or other Bible is bundled. When DBS is unavailable, detection can continue but preview and insertion report that Scripture text needs a connection.
 - Provider requests contain only translation ID, canonical book ID, and chapter. Document prose, file name, title, identity, and surrounding words are never sent.
 - Responses are time-, size-, and schema-bounded, normalized as untrusted plain text, and never executed or rendered as provider HTML.
+- Authorized catalog and Scripture responses may be cached locally. Persistent caches must be schema-versioned, bounded by age, bytes, and entries, clearable by the user, and must never contain document prose or identity.
 - Inserted text includes the normalized passage and an editable citation with translation abbreviation. Required provider copyright/attribution remains visible in the task pane and travels with generated content where Word allows metadata.
 
 ## Word behavior

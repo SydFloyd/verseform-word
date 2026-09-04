@@ -8,6 +8,9 @@ Updated: 2026-09-04
 - Active item: `VFW-010` is next — prove the real Word on the web annotation interaction before expanding the provider or multilingual surface.
 - Product name: **Verseform for Word**; repository name: `verseform-word`.
 - Public repository: `https://github.com/SydFloyd/verseform-word`.
+- Stewardship baseline: MIT-licensed under `SydFloyd`; keep the repository there while building and coordinate any later DBS mirror or transfer explicitly.
+- Release breadth: prove the English interaction first, then add languages only with language-specific corpora and Word offset evidence.
+- DBS permission: persistent catalog and passage caching is permitted for this add-in; implementation must still be bounded, local, clearable, and content-only.
 - Host baseline: one Office.js task-pane application and add-in-only XML manifest target Word on the web first and Word desktop later. WordApi 1.7 and a connected Microsoft 365 subscription are required for native annotations.
 - Trust baseline: detection is local; no Bible is bundled; preview/insertion may send only normalized coordinates to DBS; no document prose, telemetry, account, or crash upload leaves through Verseform.
 
@@ -22,10 +25,8 @@ Updated: 2026-09-04
 
 ## Owner inputs before public release
 
-- Confirm long-term GitHub ownership and whether DBS will receive or mirror the repository.
-- Confirm source license; MIT is recommended for a free DBS-distributed add-in.
-- Confirm whether the first usable release is English-only or must include DBS's ten detector languages.
-- Confirm that DBS cache permission applies to this add-in and choose production HTTPS hosting/log-retention ownership.
+- Choose production HTTPS hosting and log-retention ownership.
+- Choose the support URL and Microsoft Marketplace publisher identity with DBS.
 
 ## Handoff rule
 

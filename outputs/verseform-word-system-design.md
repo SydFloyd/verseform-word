@@ -73,7 +73,7 @@ The DBS adapter exposes two operations: list authorized translations and fetch o
 
 Detection never calls this port. Hover or activation may start a cancellable request. A replacement plan is accepted only after rereading the Word paragraph and proving its recorded source slice is unchanged. No WEB fallback exists.
 
-Persistent caching remains pending explicit confirmation for this add-in. VFW-010 may use only in-memory request deduplication; a later accepted cache policy must bound origin, age, bytes, entries, schema, and removal behavior.
+DBS cache permission is confirmed for this add-in. VFW-010 remains provider-free and needs no persistent Scripture cache. VFW-020 may add one local adapter that stores only authorized catalog/chapter responses after its origin, age, byte, entry, schema, clear, and removal bounds have executable proof; document prose and identity are never cache inputs.
 
 ## Manifest and hosting
 

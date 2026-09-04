@@ -16,6 +16,7 @@ The central interaction targets WordApi 1.7 annotations. Word can underline an a
 - A preview or insertion may send only the selected translation, canonical book, and chapter to the DBS ARC service.
 - Document prose, file names, account identity, and surrounding text are never sent by Verseform.
 - No account, analytics, telemetry, crash upload, advertising, or bundled Bible is planned.
+- Authorized DBS catalog and Scripture responses may be kept in a bounded, clearable local cache; document prose never enters it.
 - Remote content is untrusted plain data. It is bounded, validated, normalized, and never rendered as provider HTML.
 - A passage replaces text only after an explicit user action and a fresh-source check.
 
@@ -47,6 +48,6 @@ Read these in order:
 
 ## Stewardship
 
-This project is being prepared with gratitude for Digital Bible Society and the people who serve others through Scripture-centered writing. Accuracy, privacy, attribution, and calm usability are part of the service, not polish added afterward.
+This MIT-licensed project is being prepared under `SydFloyd` with gratitude for Digital Bible Society and the people who serve others through Scripture-centered writing. Accuracy, privacy, attribution, and calm usability are part of the service, not polish added afterward. The first usable release is deliberately English-first; multilingual detection follows corpus and Word offset proof.
 
-Microsoft Word is a trademark of Microsoft Corporation. Verseform is not presented as endorsed by Microsoft. DBS relationship, repository ownership, final branding, and source license remain explicit owner decisions in the decision log.
+Microsoft Word is a trademark of Microsoft Corporation. Verseform is not presented as endorsed by Microsoft. A future DBS mirror or repository transfer, final branding, production hosting, and publisher identity require explicit coordination.
