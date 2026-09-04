@@ -1,7 +1,7 @@
 import "./styles.css";
 import { BrowserAnnotationOwnership } from "./app/annotationOwnership";
 import { Vfw010Controller } from "./app/controller";
-import { inspectWordHost } from "./office/capabilities";
+import { inspectWordHost, officeReadinessFailure } from "./office/capabilities";
 import { OfficeWordGateway } from "./office/wordGateway";
 import { mountTaskPane } from "./ui/taskPane";
 
@@ -30,5 +30,8 @@ if (typeof Office === "undefined") {
       void controller.stop();
     }, { once: true });
     void controller.start();
+  }).catch(() => {
+    const capability = officeReadinessFailure();
+    taskPane.renderHostStatus("blocked", capability.title, capability.detail);
   });
 }

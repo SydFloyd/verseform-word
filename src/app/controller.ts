@@ -43,6 +43,12 @@ export class Vfw010Controller {
    * ledger because that would persist paragraph/source metadata.
    */
   private readonly retiredAnnotations = new Map<string, AnnotatedReference>();
+  /**
+   * Opaque IDs loaded at this pane start. They carry no prose or range data,
+   * but let a post-close resurrection be distinguished from an arbitrary
+   * annotation without guessing which occurrence it represents.
+   */
+  private readonly priorOwnedAnnotationIds = new Set<string>();
   private readonly paragraphRevisions = new Map<string, number>();
   private state: Vfw010State = initialState;
   private operation = Promise.resolve();
@@ -76,6 +82,8 @@ export class Vfw010Controller {
         try {
           const owned = await this.ownership.load();
           if (!this.isCurrent(generation)) return;
+          this.priorOwnedAnnotationIds.clear();
+          for (const entry of owned) this.priorOwnedAnnotationIds.add(entry.annotationId);
           const reconciliation = await this.removeHostAnnotations(
             owned.map((entry) => entry.annotationId),
             "age-missing",
@@ -155,6 +163,7 @@ export class Vfw010Controller {
     this.runtime = undefined;
     this.annotations.clear();
     this.retiredAnnotations.clear();
+    this.priorOwnedAnnotationIds.clear();
     this.paragraphRevisions.clear();
 
     const task = (async () => {
@@ -523,10 +532,15 @@ export class Vfw010Controller {
     if (!annotation) annotation = await this.restoreRetiredForActivation(annotationId, generation);
     if (!annotation) {
       if (this.state.phase === "blocked") return;
+      const wasOwnedBeforeThisPane = this.priorOwnedAnnotationIds.has(annotationId);
       this.publish({
         phase: "watching",
-        title: "That annotation is not available",
-        detail: "Verseform will not guess which duplicate reference you meant. Complete or activate a current annotation instead.",
+        title: wasOwnedBeforeThisPane
+          ? "A previous temporary annotation returned"
+          : "That annotation is not available",
+        detail: wasOwnedBeforeThisPane
+          ? "Verseform recognizes this earlier annotation ID but cannot safely map it after reopening. No text changed. Complete the reference again to create a current annotation."
+          : "Verseform will not guess which duplicate reference you meant. Complete or activate a current annotation instead.",
         canInsert: false,
         canCancel: false,
         focusTarget: "status",

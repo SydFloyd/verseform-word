@@ -12,6 +12,7 @@ import { candidatesForParagraph, type ParagraphSnapshot } from "../src/app/inter
 import type { AnnotatedReference } from "../src/core/freshness";
 import { scanReferences, type ReferenceCandidate } from "../src/core/reference";
 import type { ReplacementResult, WordGateway, WordHostHandlers, WordRuntime } from "../src/office/gateway";
+import { inspectWordHost, officeReadinessFailure } from "../src/office/capabilities";
 import { isReplaceableAnnotationState } from "../src/office/replacementGuard";
 import { OfficeWordGateway } from "../src/office/wordGateway";
 import { mountTaskPane } from "../src/ui/taskPane";
@@ -280,7 +281,7 @@ describe("VFW-010 interaction kernel", () => {
     }]);
   });
 
-  it("maps a duplicate reference by annotation ID and replaces only the activated occurrence", async () => {
+  it("maps a hovered duplicate reference by annotation ID without a request, then replaces only that occurrence", async () => {
     const word = new FakeWordGateway("paragraph-1", "John 3:16 and John 3:16.");
     const { controller } = controllerFor(word);
     await controller.start();
@@ -288,15 +289,22 @@ describe("VFW-010 interaction kernel", () => {
     const ids = [...word.annotations.keys()];
     expect(ids).toHaveLength(2);
 
-    await word.activate(ids[1]!, "hovered");
-    expect(controller.getState()).toMatchObject({
-      phase: "preview",
-      selectedAnnotationId: ids[1],
-      canInsert: true,
-      canCancel: true,
-      preview: { heading: "John 3:16" },
-    });
-    await controller.insertSelected();
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    try {
+      await word.activate(ids[1]!, "hovered");
+      expect(controller.getState()).toMatchObject({
+        phase: "preview",
+        selectedAnnotationId: ids[1],
+        canInsert: true,
+        canCancel: true,
+        preview: { heading: "John 3:16" },
+      });
+      expect(fetchSpy).not.toHaveBeenCalled();
+      await controller.insertSelected();
+    } finally {
+      vi.unstubAllGlobals();
+    }
 
     const output = word.paragraphs.get("paragraph-1")?.text ?? "";
     expect(output).toBe(
@@ -870,6 +878,32 @@ describe("VFW-010 interaction kernel", () => {
     expect(await ownership.load()).toEqual([{ annotationId: orphanId, missingSweeps: 1 }]);
   });
 
+  it("distinguishes a late post-close resurrection by its opaque prior ID and refuses to guess its range", async () => {
+    const word = new FakeWordGateway("paragraph-1", "Read John 3:16.");
+    const ownership = new MemoryAnnotationOwnership();
+    await ownership.seed([{ annotationId: "previous-pane-id", missingSweeps: 0 }]);
+    const { controller } = controllerFor(word, ownership);
+    await controller.start();
+
+    // Startup could not find this ID. Model Word Undo restoring it later,
+    // after the former runtime's paragraph/range metadata was forgotten.
+    word.annotations.set("previous-pane-id", {
+      paragraphId: "paragraph-1",
+      candidate: candidatesForParagraph("Read John 3:16.")[0]!,
+    });
+    await word.activate("previous-pane-id");
+
+    expect(controller.getState()).toMatchObject({
+      phase: "watching",
+      title: "A previous temporary annotation returned",
+      detail: expect.stringMatching(/cannot safely map it after reopening/u),
+      canInsert: false,
+      focusTarget: "status",
+    });
+    expect(word.annotations.has("previous-pane-id")).toBe(true);
+    expect(word.replaceCalls).toBe(0);
+  });
+
   it("bounds repeated missing-ID retries without blocking a new document", async () => {
     const word = new FakeWordGateway("paragraph-1", "No reference.");
     const ownership = new MemoryAnnotationOwnership();
@@ -977,6 +1011,47 @@ describe("replacement and task-pane contracts", () => {
       insert: { disabled: false, label: "Insert test passage" },
       cancel: { disabled: false },
     });
+  });
+});
+
+describe("Word host capability contract", () => {
+  it("provides clear no-change states for a non-Word host, unsupported WordApi, and readiness failure", () => {
+    const supported = vi.fn(() => true);
+    vi.stubGlobal("Office", {
+      HostType: { Word: "Word" },
+      context: { host: "Excel", requirements: { isSetSupported: supported } },
+    });
+    try {
+      expect(inspectWordHost()).toEqual({
+        kind: "blocked",
+        title: "Open in Word",
+        detail: "This add-in works only inside Microsoft Word.",
+      });
+      expect(supported).not.toHaveBeenCalled();
+
+      vi.stubGlobal("Office", {
+        HostType: { Word: "Word" },
+        context: { host: "Word", requirements: { isSetSupported: vi.fn(() => false) } },
+      });
+      expect(inspectWordHost()).toEqual({
+        kind: "blocked",
+        title: "Word needs annotation support",
+        detail: "Verseform requires WordApi 1.7 and a connected Microsoft 365 subscription.",
+      });
+
+      vi.stubGlobal("Office", {
+        HostType: { Word: "Word" },
+        context: { host: "Word", requirements: { isSetSupported: vi.fn(() => true) } },
+      });
+      expect(inspectWordHost()).toMatchObject({ kind: "ready", title: "Word is ready" });
+      expect(officeReadinessFailure()).toMatchObject({
+        kind: "blocked",
+        title: "Word could not start Verseform",
+        detail: expect.stringMatching(/did not change your document/u),
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 
@@ -1210,6 +1285,7 @@ describe("task-pane DOM harness", () => {
     const source = readFileSync("index.html", "utf8");
     const styles = readFileSync("src/styles.css", "utf8");
     expect(source).toContain('name="color-scheme" content="light dark"');
+    expect(source).toMatch(/class="status-card"[^>]*aria-live="polite"/u);
     expect(source).toMatch(/id="preview-card"[^>]*aria-live="polite"/u);
     expect(source).toContain('id="cancel-button"');
     expect(styles).toMatch(/color-scheme:\s*light dark/u);
@@ -1240,6 +1316,12 @@ describe("task-pane DOM harness", () => {
 
       pane.render({ phase: "watching", title: "Refused", detail: "No change", canInsert: false, canCancel: false, focusTarget: "status" });
       expect(elements.get("#status-title")?.focusCalls).toBe(1);
+
+      pane.renderHostStatus("blocked", "Word needs annotation support", "WordApi 1.7 is required.");
+      expect(elements.get(".status-card")?.dataset.kind).toBe("blocked");
+      expect(elements.get("#insert-button")?.disabled).toBe(true);
+      expect(elements.get("#cancel-button")?.disabled).toBe(true);
+      expect(elements.get("#status-title")?.focusCalls).toBe(2);
 
       pane.onInsert(async () => { throw new Error("UI action failure"); });
       pane.render({ phase: "preview", title: "Preview", detail: "Fake", canInsert: true, canCancel: true, preview: { heading: "John", text: "Fake", insertText: "Fake" } });

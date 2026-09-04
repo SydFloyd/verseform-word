@@ -72,6 +72,7 @@ export function mountTaskPane(): MountedTaskPane {
       preview.hidden = true;
       insert.disabled = true;
       cancel.disabled = true;
+      title.focus();
     },
   };
 }

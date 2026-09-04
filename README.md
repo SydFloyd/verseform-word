@@ -2,13 +2,13 @@
 
 Verseform for Word is a small Microsoft Word add-in for people who write with Scripture. A completed reference becomes interactive after a delimiter; the user can preview authorized Digital Bible Society text and explicitly replace that reference with the passage and an editable citation.
 
-This is the project seed. The host-capability task pane and production-shaped XML manifest are present; the first real slice is the Word on the web annotation proof described in `outputs/verseform-word-roadmap.md`.
+The project seed and provider-free Word on the web interaction proof are complete. The current walking slice detects references locally, creates exact temporary annotations, previews labeled test text in the task pane, and replaces only an explicitly activated, observably fresh occurrence. Authorized DBS text arrives in the next roadmap slice.
 
 ## Why one add-in
 
 Office.js task-pane add-ins use a web application plus a manifest and can run in Word on the web and supported desktop clients. We will prove Word on the web first, then validate the same add-in on Word for Windows rather than build a separate plugin. The add-in-only XML manifest is intentional: Microsoft's unified manifest for Word remains preview-only for production add-ins.
 
-The central interaction targets WordApi 1.7 annotations. Word can underline an affected text range and report hover, click, and popup-action events. Those APIs require Word connected to a Microsoft 365 subscription. VFW-010 treats the exact interaction as a host feasibility gate because Word, not the add-in, owns the document canvas and native annotation popup.
+The central interaction targets WordApi 1.7 annotations. Word can underline an affected text range and report click, keyboard, and hover activation; click and `Alt+Down` are the proved paths, while hover remains best effort because Word on the web did not reliably deliver it. Annotation popup-action APIs are WordApi 1.8, so this 1.7-baseline add-in keeps preview and Insert in its accessible task pane. These APIs require Word connected to a Microsoft 365 subscription. VFW-010 closed its feasibility gate with explicit safe refusal for observable stale, unknown, and post-close ambiguous states; WordApi 1.7's narrow non-atomic coauthor timing limitation remains documented.
 
 ## Trust boundary
 
@@ -34,7 +34,7 @@ npm run dev
 
 Then open Word on the web, choose **Add-ins → Advanced → Upload My Add-in**, and upload `manifest.xml`. The local server must remain running at `https://localhost:3000`.
 
-Use `npm run check` for the local code and structural manifest gate. Microsoft Marketplace validation remains a release gate; do not claim the Word interaction until the VFW-010 online acceptance proof passes in the real host.
+Use `npm run check` for the local code and structural manifest gate. The VFW-010 walking interaction has passed its Word on the web host proof. Microsoft Marketplace validation, production DBS integration, screen-reader and Windows forced-color validation, and the same-source Word for Windows walk remain later release gates.
 
 ## Project authorities
 

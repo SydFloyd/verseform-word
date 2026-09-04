@@ -9,9 +9,9 @@ Verseform for Word helps a person remain inside Microsoft Word while inserting a
 1. While the Verseform add-in is active, Word reports a changed paragraph.
 2. After the user completes a supported reference and types a delimiter, Verseform scans only the relevant paragraph locally.
 3. A valid reference receives a temporary Word-native annotation. Invalid coordinates may receive restrained, explanatory feedback; ordinary prose stays untouched.
-4. Hovering or activating the annotation requests no text unless a preview or insertion is actually needed. VFW-010 uses the task pane for its on-demand preview and explicit Insert action. It does not assume a native popup action: the installed Office.js contract places those APIs in WordApi 1.8, above this slice's WordApi 1.7 baseline.
+4. Clicking the annotation or selecting it with Word's `Alt+Down` command opens the task-pane preview without changing prose. Hover may open the same preview when Word delivers its hover event, but it is a best-effort convenience rather than a required path. VFW-010 uses the task pane for its on-demand preview and explicit Insert action. It does not assume a native popup action: the installed Office.js contract places those APIs in WordApi 1.8, above this slice's WordApi 1.7 baseline.
 5. An explicit insertion action replaces exactly the activated reference with passage text followed by an editable citation.
-6. Before replacement, Verseform proves that the paragraph, source range, reference, and translation still match the request. Otherwise it does nothing and explains that the writing changed.
+6. Before replacement, Verseform rereads and verifies that the paragraph, annotation-owned source range, reference, and translation still match the request. It refuses every stale, missing, ambiguous, or failed state observable through WordApi 1.7 and explains that the writing changed. WordApi 1.7 has no atomic conditional replace, so a coauthor edit after that final verification and before Word applies the queued replace cannot be ruled out; this narrow platform limitation is documented rather than claimed safe.
 7. The replacement is one Word transaction so Word's ordinary Undo restores the reference.
 
 ## Reference intelligence
@@ -39,6 +39,8 @@ Verseform for Word helps a person remain inside Microsoft Word while inserting a
 - Native Word APIs own annotations, selection, replacement, formatting inheritance, Undo, coauthor behavior, and accessibility semantics.
 - Temporary annotations must not persist as document content or alter saved prose.
 - The add-in must behave safely when its task pane closes, event handlers are destroyed, coauthors change text, the selection moves, or the host lacks WordApi 1.7.
+- WordApi 1.7 annotation click, hover, and removal events are not coauthor-triggered. Verseform must not present those events, or its final reread, as an atomic coauthor stale guarantee.
+- Word on the web click and `Alt+Down` activation are required. Hover is progressive enhancement because the host may expose the API without delivering the event reliably.
 - WordApi 1.7 annotations require a connected Microsoft 365 subscription. This limitation is stated before installation and inside an unsupported host.
 
 ## Privacy, accessibility, and distribution
@@ -56,4 +58,4 @@ Bundled/offline Bibles, whole-document automatic replacement, Google Docs, Outlo
 
 ## Acceptance
 
-The first usable online release is ready when a Word on the web user can open the add-in, type a supported reference followed by a delimiter, see the correct temporary annotation without a network request, preview one authorized DBS passage on demand, explicitly replace only that fresh reference with passage and citation, Undo back to the reference, and receive clear failure behavior for stale text, unavailable DBS, invalid references, unsupported hosts, and a closed/reopened task pane.
+The first usable online release is ready when a Word on the web user can open the add-in, type a supported reference followed by a delimiter, see the correct temporary annotation without a network request, preview one authorized DBS passage on demand, explicitly replace only a reference that passed Verseform's final observable freshness check with passage and citation, Undo back to the reference, and receive clear failure behavior for observable stale text, unavailable DBS, invalid references, unsupported hosts, and a closed/reopened task pane. The documented WordApi 1.7 check-then-replace coauthor timing limitation remains explicit.

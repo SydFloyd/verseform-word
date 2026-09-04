@@ -4,6 +4,15 @@ export type HostCapability = {
   detail: string;
 };
 
+/** A rejected Office readiness promise has not reached the Word boundary. */
+export function officeReadinessFailure(): HostCapability {
+  return {
+    kind: "blocked",
+    title: "Word could not start Verseform",
+    detail: "Verseform did not change your document. Reopen the task pane inside a connected Microsoft Word host with WordApi 1.7.",
+  };
+}
+
 export function inspectWordHost(): HostCapability {
   if (Office.context.host !== Office.HostType.Word) {
     return {
