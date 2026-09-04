@@ -1,0 +1,96 @@
+:root {
+  color: #25221d;
+  background: #f7f4ed;
+  font-family: Aptos, "Segoe UI", sans-serif;
+  font-synthesis: none;
+}
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 260px;
+  background: #f7f4ed;
+}
+
+.shell {
+  display: grid;
+  gap: 22px;
+  padding: 22px 18px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 24px;
+  line-height: 1;
+}
+
+h2 {
+  margin-bottom: 8px;
+  font-size: 15px;
+}
+
+p {
+  color: #5f594e;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.brand p {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.status-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #d9d1c2;
+  border-radius: 8px;
+  background: #fffdfa;
+}
+
+.status-card strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.status-dot {
+  width: 9px;
+  height: 9px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: #9c7a2b;
+}
+
+.status-card[data-kind="ready"] .status-dot {
+  background: #2e7555;
+}
+
+.status-card[data-kind="blocked"] .status-dot {
+  background: #a44235;
+}
+
+footer {
+  padding-top: 14px;
+  border-top: 1px solid #ded7ca;
+}
+
+footer p {
+  font-size: 11px;
+}
