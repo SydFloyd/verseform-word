@@ -185,7 +185,7 @@ class FakeWordGateway implements WordGateway {
     paragraph.revision += 1;
   }
 
-  public async activate(annotationId: string, activation: "hovered" | "clicked" = "clicked"): Promise<void> {
+  public async activate(annotationId: string, activation: "hovered" | "clicked" = "hovered"): Promise<void> {
     await Promise.all([...this.handlers].map(async (handler) => handler.onAnnotationActivated(annotationId, activation)));
   }
 
@@ -1114,6 +1114,87 @@ describe("VFW-020 provider integration", () => {
       + "New American Standard Bible (NASB): © The Lockman Foundation.",
     );
     expect(word.replaceCalls).toBe(1);
+  });
+
+  it("shares a pending hover preview with click and inserts the exact reference once", async () => {
+    const word = new FakeWordGateway("paragraph-1", "Read John 3:16.");
+    const scripture = new RecordedScriptureProvider();
+    const { controller } = controllerFor(word, new MemoryAnnotationOwnership(), scripture);
+    await controller.start();
+    await word.change("paragraph-1", "Read John 3:16.");
+    const [annotationId] = word.annotations.keys();
+    const deferred = scripture.deferNextPassage();
+
+    const hover = word.activate(annotationId!, "hovered");
+    await deferred.started;
+    const click = word.activate(annotationId!, "clicked");
+    deferred.release();
+    await Promise.all([hover, click]);
+
+    expect(scripture.calls).toHaveLength(1);
+    expect(word.replaceCalls).toBe(1);
+    expect(word.paragraphs.get("paragraph-1")?.text).toBe(
+      "Read DBS test verse 16 for JHN. (John 3:16, NASB)\n"
+      + "New American Standard Bible (NASB): © The Lockman Foundation.",
+    );
+  });
+
+  it("inserts a hover-ready passage on click without requesting it again", async () => {
+    const word = new FakeWordGateway("paragraph-1", "Read John 3:16.");
+    const scripture = new RecordedScriptureProvider();
+    const { controller } = controllerFor(word, new MemoryAnnotationOwnership(), scripture);
+    await controller.start();
+    await word.change("paragraph-1", "Read John 3:16.");
+    const [annotationId] = word.annotations.keys();
+
+    await word.activate(annotationId!, "hovered");
+    expect(scripture.calls).toHaveLength(1);
+    expect(word.replaceCalls).toBe(0);
+
+    await word.activate(annotationId!, "clicked");
+
+    expect(scripture.calls).toHaveLength(1);
+    expect(word.replaceCalls).toBe(1);
+    expect(word.paragraphs.get("paragraph-1")?.text).toContain("(John 3:16, NASB)");
+  });
+
+  it("loads and inserts from one explicit annotation click without requiring hover", async () => {
+    const word = new FakeWordGateway("paragraph-1", "Read John 3:16.");
+    const scripture = new RecordedScriptureProvider();
+    const { controller } = controllerFor(word, new MemoryAnnotationOwnership(), scripture);
+    await controller.start();
+    await word.change("paragraph-1", "Read John 3:16.");
+    const [annotationId] = word.annotations.keys();
+
+    await word.activate(annotationId!, "clicked");
+
+    expect(scripture.calls).toHaveLength(1);
+    expect(word.replaceCalls).toBe(1);
+    expect(word.paragraphs.get("paragraph-1")?.text).toContain("(John 3:16, NASB)");
+  });
+
+  it("refuses click-to-insert when the reference changes during its DBS request", async () => {
+    const word = new FakeWordGateway("paragraph-1", "Read John 3:16.");
+    const scripture = new RecordedScriptureProvider();
+    const { controller } = controllerFor(word, new MemoryAnnotationOwnership(), scripture);
+    await controller.start();
+    await word.change("paragraph-1", "Read John 3:16.");
+    const [annotationId] = word.annotations.keys();
+    const deferred = scripture.deferNextPassage();
+
+    const click = word.activate(annotationId!, "clicked");
+    await deferred.started;
+    await word.mutateWithoutEvent("paragraph-1", "Read John 3:15.");
+    deferred.release();
+    await click;
+
+    expect(controller.getState()).toMatchObject({
+      phase: "watching",
+      title: "Writing changed before insertion",
+      canInsert: false,
+    });
+    expect(word.replaceCalls).toBe(0);
+    expect(word.paragraphs.get("paragraph-1")?.text).toBe("Read John 3:15.");
   });
 
   it("honors a saved authorized translation and remembers an explicit change", async () => {

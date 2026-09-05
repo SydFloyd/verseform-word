@@ -91,6 +91,11 @@ export class VerseformController {
   private actionGeneration = 0;
   private previewGeneration = 0;
   private previewAbort: AbortController | undefined;
+  private inFlightPreview: {
+    annotationId: string;
+    translationId: string;
+    task: Promise<void>;
+  } | undefined;
   private catalogAbort: AbortController | undefined;
   private pendingInsert: { token: number; mutationStarted: boolean } | undefined;
   private catalogPhase: CatalogPhase = "loading";
@@ -201,6 +206,7 @@ export class VerseformController {
     this.previewGeneration += 1;
     this.previewAbort?.abort();
     this.previewAbort = undefined;
+    this.inFlightPreview = undefined;
     this.catalogAbort?.abort();
     this.catalogAbort = undefined;
     this.pendingInsert = undefined;
@@ -393,12 +399,17 @@ export class VerseformController {
           }
         });
       },
-      onAnnotationActivated: async (annotationId) => {
+      onAnnotationActivated: async (annotationId, activation) => {
         let previewTask: Promise<void> | undefined;
         await this.runEvent(generation, async () => {
+          if (this.pendingInsert) return;
+          if (activation === "clicked" && this.isInsertReadyFor(annotationId)) return;
           previewTask = (await this.activate(annotationId, generation))?.previewTask;
         });
         await previewTask;
+        if (activation === "clicked" && this.isInsertReadyFor(annotationId)) {
+          await this.insertSelected();
+        }
       },
       onAnnotationRemoved: async (annotationIds) => {
         await this.runEvent(generation, async () => {
@@ -690,6 +701,14 @@ export class VerseformController {
       return undefined;
     }
 
+    const inFlight = this.inFlightPreview;
+    if (inFlight
+      && inFlight.annotationId === annotationId
+      && inFlight.translationId === translation.id
+      && this.state.selectedAnnotationId === annotationId) {
+      return { previewTask: inFlight.task };
+    }
+
     const current = await this.word.readParagraph(annotation.paragraphId);
     if (!this.isCurrent(generation)) return;
     const translatedAnnotation = { ...annotation, translationId: translation.id };
@@ -714,15 +733,30 @@ export class VerseformController {
       canInsert: false,
       canCancel: true,
     });
-    return {
-      previewTask: this.loadPreview(
-        translatedAnnotation,
-        translation,
-        requestToken,
-        generation,
-        abort.signal,
-      ),
+    const previewTask = this.loadPreview(
+      translatedAnnotation,
+      translation,
+      requestToken,
+      generation,
+      abort.signal,
+    );
+    this.inFlightPreview = {
+      annotationId,
+      translationId: translation.id,
+      task: previewTask,
     };
+    void previewTask.finally(() => {
+      if (this.inFlightPreview?.task === previewTask) this.inFlightPreview = undefined;
+    });
+    return { previewTask };
+  }
+
+  private isInsertReadyFor(annotationId: string): boolean {
+    return this.active
+      && this.state.phase === "preview"
+      && this.state.selectedAnnotationId === annotationId
+      && this.state.preview !== undefined
+      && this.state.canInsert;
   }
 
   private isFresh(
@@ -963,7 +997,7 @@ export class VerseformController {
         this.publish({
           phase: "preview",
           title: "Preview ready",
-          detail: `${translation.name}${passage.cached ? " · local cache" : " · DBS"}`,
+          detail: `${translation.name}${passage.cached ? " · local cache" : " · DBS"} · click the marked reference to insert`,
           selectedAnnotationId: annotation.annotationId,
           preview,
           canInsert: true,
@@ -1007,6 +1041,7 @@ export class VerseformController {
     this.previewGeneration += 1;
     this.previewAbort?.abort();
     this.previewAbort = undefined;
+    this.inFlightPreview = undefined;
   }
 
   private isCurrent(generation: number): boolean {

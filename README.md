@@ -1,6 +1,6 @@
 # Verseform for Word
 
-Verseform for Word is a small Microsoft Word add-in for people who write with Scripture. A completed reference becomes interactive after a delimiter; the user can preview authorized Digital Bible Society text and explicitly replace that reference with the passage and an editable citation.
+Verseform for Word is a small Microsoft Word add-in for people who write with Scripture. A completed reference becomes interactive after a delimiter; hover previews authorized Digital Bible Society text when Word delivers it, and clicking the marked reference or using `Alt+Down` explicitly replaces that exact occurrence with the passage and an editable citation after a final freshness check.
 
 The project seed, Word interaction proof, and authorized DBS walking slice are complete. The add-in detects references locally, creates exact temporary annotations, loads the authorized translation catalog, previews a selected passage only on activation, and replaces only an explicitly activated, observably fresh occurrence with passage, editable citation, and provider attribution. NASB is preferred unless the user has saved another authorized translation.
 
@@ -8,7 +8,7 @@ The project seed, Word interaction proof, and authorized DBS walking slice are c
 
 Office.js task-pane add-ins use a web application plus a manifest and can run in Word on the web and supported desktop clients. We will prove Word on the web first, then validate the same add-in on Word for Windows rather than build a separate plugin. The add-in-only XML manifest is intentional: Microsoft's unified manifest for Word remains preview-only for production add-ins.
 
-The central interaction targets WordApi 1.7 annotations. Word can underline an affected text range and report click, keyboard, and hover activation; click and `Alt+Down` are the proved paths, while hover remains best effort because Word on the web did not reliably deliver it. Annotation popup-action APIs are WordApi 1.8, so this 1.7-baseline add-in keeps preview and Insert in its accessible task pane. These APIs require Word connected to a Microsoft 365 subscription. VFW-010 closed its feasibility gate with explicit safe refusal for observable stale, unknown, and post-close ambiguous states; WordApi 1.7's narrow non-atomic coauthor timing limitation remains documented.
+The central interaction targets WordApi 1.7 annotations. Word can underline an affected text range and report click, keyboard, and hover activation. Hover is preview-only and best effort because Word on the web did not reliably deliver it; click and `Alt+Down` are explicit guarded insertion paths. The accessible task-pane Insert control remains an alternative. WordApi 1.8 critique suggestions are intentionally not repurposed as command buttons because Word owns their document replacement. Annotation APIs require Word connected to a Microsoft 365 subscription. VFW-010 closed its feasibility gate with explicit safe refusal for observable stale, unknown, and post-close ambiguous states; WordApi 1.7's narrow non-atomic coauthor timing limitation remains documented.
 
 ## Trust boundary
 
@@ -54,8 +54,8 @@ The Windows walking proof uses the same user flow as Word on the web:
 
 1. Open **Verseform** from Word's Home ribbon or **Add-ins** menu and confirm the task pane reports **Word is ready** and loads authorized translations with NASB preferred.
 2. Type `🙂 John 3:16 ` and confirm only `John 3:16` becomes a temporary annotation after the final space.
-3. Activate the reference once by click and once by Word's `Alt+Down` path; confirm the exact NASB preview and Lockman attribution appear without changing the document.
-4. Choose **Insert passage**, confirm passage, editable citation, and visible attribution replace only that occurrence, then use one Word Undo to restore the reference.
+3. Hover the reference and confirm the exact NASB preview and Lockman attribution appear without changing the document.
+4. Click the marked reference; confirm passage, editable citation, and visible attribution replace only that occurrence without a trip to the pane, then use one Word Undo to restore the reference. Repeat with Word's `Alt+Down` path and with the task-pane Insert alternative.
 5. Repeat with duplicate references in one paragraph, clear the local Scripture cache, and confirm a later activation refetches rather than changing prose early.
 6. Change a reference while a preview is pending and confirm Verseform refuses the stale result. Close and reopen the pane and confirm delimiter detection resumes safely.
 7. Repeat keyboard insertion, cancellation, and focus recovery with Windows forced colors and a screen reader before public release.
@@ -77,7 +77,7 @@ The owner and DBS must still resolve `D-011`: public HTTPS host and log retentio
 ## Known limits and support
 
 - WordApi 1.7 and a connected Microsoft 365 subscription are required for temporary annotations.
-- Click and `Alt+Down` are supported activation paths. Hover is best effort because Word on the web did not reliably deliver its documented event.
+- Click and `Alt+Down` are the explicit high-throughput insertion paths. Hover preview is best effort because Word on the web did not reliably deliver its documented event; clicking without a prior hover still loads, checks, and inserts once.
 - Detection remains local when DBS is unavailable, but preview and insertion need a connection; no fallback Bible is bundled.
 - WordApi 1.7 cannot make the final check-and-replace atomic against a coauthor edit that lands between Word synchronization boundaries. Every stale state Verseform can observe still fails closed.
 - Verseform collects no diagnostics. Support is direct and voluntary; share the app version, Word host/version, reproduction steps, and non-sensitive screenshots if useful, but never private writing or Word documents.
