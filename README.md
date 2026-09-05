@@ -36,6 +36,52 @@ Then open Word on the web, choose **Add-ins → Advanced → Upload My Add-in**,
 
 Use `npm run check` for the local code and structural manifest gate. VFW-010 and VFW-020 passed their Word on the web host proofs, including live NASB/KJV retrieval, local caching and clearing, editable attribution insertion, one-step Undo, stale-response rejection, and provider-unavailable behavior without prose loss. VFW-030 now adds a versioned English corpus covering every approved canonical name/alias, strict and fuzzy behavior, false positives, mixed-direction UTF-16 offsets, provider isolation, and a 100,000-unit performance budget. Multilingual detection is deliberately deferred pending DBS review and English-pilot feedback. Production hosting/Marketplace validation, accessibility validation, and the same-source Word for Windows walk remain release gates.
 
+## Word for Windows validation
+
+Use the same `manifest.xml` and source application in desktop Word. After trusting the development certificate and closing any earlier debug session, run:
+
+```powershell
+npm run desktop:start
+```
+
+This invokes Microsoft's pinned desktop sideload helper on demand, starts the HTTPS development server, registers the add-in for Word, and opens a generated test document. The helper is deliberately not a persistent project dependency: its current development-only graph carries known high-severity audit findings and none of it ships in the add-in. Always end the session with:
+
+```powershell
+npm run desktop:stop
+```
+
+The Windows walking proof uses the same user flow as Word on the web:
+
+1. Open **Verseform** from Word's Home ribbon or **Add-ins** menu and confirm the task pane reports **Word is ready** and loads authorized translations with NASB preferred.
+2. Type `🙂 John 3:16 ` and confirm only `John 3:16` becomes a temporary annotation after the final space.
+3. Activate the reference once by click and once by Word's `Alt+Down` path; confirm the exact NASB preview and Lockman attribution appear without changing the document.
+4. Choose **Insert passage**, confirm passage, editable citation, and visible attribution replace only that occurrence, then use one Word Undo to restore the reference.
+5. Repeat with duplicate references in one paragraph, clear the local Scripture cache, and confirm a later activation refetches rather than changing prose early.
+6. Change a reference while a preview is pending and confirm Verseform refuses the stale result. Close and reopen the pane and confirm delimiter detection resumes safely.
+7. Repeat keyboard insertion, cancellation, and focus recovery with Windows forced colors and a screen reader before public release.
+
+## Production package
+
+Production values are intentionally supplied at release time so a localhost URL, guessed DBS identity, or provisional support address cannot enter a public manifest:
+
+```powershell
+npm run build
+npm run manifest:production -- -PublicBaseUrl "https://approved.example/verseform-word" -SupportUrl "https://approved.example/support" -ProviderName "Approved publisher"
+npm run validate:release
+```
+
+The generated manifest is `dist/verseform-for-word-manifest.xml`. The builder requires credential-free HTTPS URLs, replaces all eight localhost app resources with one approved public base URL, preserves the reviewed WordApi 1.7/permission contract, and runs the production validator. `npm run check` also builds a non-routable fixture manifest and proves the distributable web assets retain the reviewed CSP and contain no localhost origin.
+
+The owner and DBS must still resolve `D-011`: public HTTPS host and log retention, support URL, and Marketplace publisher identity. After those real values are known, the hosted assets and generated manifest must pass Microsoft's external manifest/Marketplace validation and the same Word web/Windows walk. A test catalog or sideload registration is not a production deployment.
+
+## Known limits and support
+
+- WordApi 1.7 and a connected Microsoft 365 subscription are required for temporary annotations.
+- Click and `Alt+Down` are supported activation paths. Hover is best effort because Word on the web did not reliably deliver its documented event.
+- Detection remains local when DBS is unavailable, but preview and insertion need a connection; no fallback Bible is bundled.
+- WordApi 1.7 cannot make the final check-and-replace atomic against a coauthor edit that lands between Word synchronization boundaries. Every stale state Verseform can observe still fails closed.
+- Verseform collects no diagnostics. Support is direct and voluntary; share the app version, Word host/version, reproduction steps, and non-sensitive screenshots if useful, but never private writing or Word documents.
+
 ## Project authorities
 
 Read these in order:

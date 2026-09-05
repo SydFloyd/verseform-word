@@ -21,3 +21,5 @@ No Bible is bundled. Without DBS connectivity, reference detection may continue 
 The production add-in will be served over HTTPS. The host may necessarily process ordinary web request metadata such as IP address and user agent; production host, retention, and access policy must be settled before public release. Verseform will not add product analytics or document-content logging.
 
 User feedback is direct and voluntary. Never ask users to submit private writing or Word documents as diagnostics.
+
+If support is needed, a user may voluntarily provide the Verseform version, Word host/version, reproduction steps, and a non-sensitive screenshot. Verseform does not collect these automatically. The public support destination, production host, server-log retention, and access policy remain release-blocking owner/DBS decisions and must be written here before publication.
