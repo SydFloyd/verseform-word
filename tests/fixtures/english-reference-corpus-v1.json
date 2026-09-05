@@ -1,0 +1,121 @@
+{
+  "version": 1,
+  "language": "en",
+  "canonId": "STANDARD-66",
+  "exact": [
+    {
+      "input": "See (John 3:16), please. ",
+      "expected": [
+        { "sourceText": "John 3:16", "display": "John 3:16", "bookId": "JHN", "chapter": 3, "verseStart": 16 }
+      ]
+    },
+    {
+      "input": "Gen. 1:1.\n",
+      "expected": [
+        { "sourceText": "Gen. 1:1", "display": "Genesis 1:1", "bookId": "GEN", "chapter": 1, "verseStart": 1 }
+      ]
+    },
+    {
+      "input": "First Corinthians 13:4-7; 1Cor 13:4–7! ",
+      "expected": [
+        { "sourceText": "First Corinthians 13:4-7", "display": "1 Corinthians 13:4-7", "bookId": "1CO", "chapter": 13, "verseStart": 4, "verseEnd": 7 },
+        { "sourceText": "1Cor 13:4–7", "display": "1 Corinthians 13:4-7", "bookId": "1CO", "chapter": 13, "verseStart": 4, "verseEnd": 7 }
+      ]
+    },
+    {
+      "input": "Read II Timothy 3:16— then Romans 8:28—30. ",
+      "expected": [
+        { "sourceText": "II Timothy 3:16", "display": "2 Timothy 3:16", "bookId": "2TI", "chapter": 3, "verseStart": 16 },
+        { "sourceText": "Romans 8:28—30", "display": "Romans 8:28-30", "bookId": "ROM", "chapter": 8, "verseStart": 28, "verseEnd": 30 }
+      ]
+    },
+    {
+      "input": "“Song   of\nSongs 8:14” and Rev 22:21… ",
+      "expected": [
+        { "sourceText": "Song   of\nSongs 8:14", "display": "Song of Solomon 8:14", "bookId": "SNG", "chapter": 8, "verseStart": 14 },
+        { "sourceText": "Rev 22:21", "display": "Revelation 22:21", "bookId": "REV", "chapter": 22, "verseStart": 21 }
+      ]
+    },
+    {
+      "input": "John 3:16; Romans 8:28, John 3:16. ",
+      "expected": [
+        { "sourceText": "John 3:16", "display": "John 3:16", "bookId": "JHN", "chapter": 3, "verseStart": 16 },
+        { "sourceText": "Romans 8:28", "display": "Romans 8:28", "bookId": "ROM", "chapter": 8, "verseStart": 28 },
+        { "sourceText": "John 3:16", "display": "John 3:16", "bookId": "JHN", "chapter": 3, "verseStart": 16 }
+      ]
+    }
+  ],
+  "fuzzyAccepted": [
+    { "input": "Gensis 1:1 ", "bookId": "GEN" },
+    { "input": "Deutronomy 6:4 ", "bookId": "DEU" },
+    { "input": "Ecclesastes 3:1 ", "bookId": "ECC" },
+    { "input": "Habakuk 2:4 ", "bookId": "HAB" },
+    { "input": "Zachariah 4:6 ", "bookId": "ZEC" },
+    { "input": "Mathew 5:9 ", "bookId": "MAT" },
+    { "input": "Philipians 4:13 ", "bookId": "PHP" },
+    { "input": "1 Corinthans 13:4 ", "bookId": "1CO" },
+    { "input": "2 Thessalonans 3:16 ", "bookId": "2TH" },
+    { "input": "Revelaton 22:21 ", "bookId": "REV" }
+  ],
+  "fuzzyRejected": [
+    "Jhna 1:1 ",
+    "Mar 2:3 ",
+    "Corinthians 13:4 ",
+    "Samuell 1:1 ",
+    "Unrelated 3:16 ",
+    "revelaton 22:21 "
+  ],
+  "invalid": [
+    { "input": "John 0:1 ", "code": "chapter_out_of_range" },
+    { "input": "John 22:1 ", "code": "chapter_out_of_range" },
+    { "input": "John 3:0 ", "code": "verse_out_of_range" },
+    { "input": "John 3:37 ", "code": "verse_out_of_range" },
+    { "input": "John 3:18-16 ", "code": "range_reversed" },
+    { "input": "John 3:35-37 ", "code": "range_end_out_of_range" }
+  ],
+  "falsePositives": [
+    "John 3:16",
+    "The ratio 3:16 was recorded. ",
+    "This is 3:4 of the draft. ",
+    "Version 2.0.1:4 is installed. ",
+    "Visit https://example.test/John 3:16 for details. ",
+    "Visit https://example.test/?ref=John 3:16 for details. ",
+    "Visit www.example.test/?ref=John 3:16 for details. ",
+    "mailto:John 3:16?subject=notes ",
+    "bible:John 3:16 is an application URI. ",
+    "notes@John 3:16 remain private. ",
+    "john3:16 is a compact identifier. ",
+    "SongofSongs 8:14 is a compact identifier. ",
+    "We finished phase Mar 2:3 yesterday. ",
+    "The identifier is John 3:16/example. "
+  ],
+  "delimiters": [
+    " ",
+    "\t",
+    "\n",
+    ".",
+    ",",
+    ";",
+    ":",
+    "!",
+    "?",
+    ")",
+    "]",
+    "}",
+    "\"",
+    "'",
+    "’",
+    "”",
+    "…",
+    "— ",
+    "– "
+  ],
+  "unfinished": [
+    "John 3:16",
+    "John 3:",
+    "John 3:16-",
+    "John 3:16- ",
+    "John 3:16a",
+    "John 3:16/"
+  ]
+}

@@ -47,7 +47,7 @@ type CompiledCanon = {
 };
 
 const compiledCanons = new WeakMap<CanonMetadata, CompiledCanon>();
-const coordinatePattern = /(\d{1,3}):(\d{1,3})(?:\s*[-–—]\s*(\d{1,3}))?(?=[\s.,;:!?)\]}"'’”])/gu;
+const coordinatePattern = /(\d{1,3}):(\d{1,3})(?:\s*[-–—]\s*(\d{1,3}))?(?=[\s.,;:!?)\]}"'’”…]|[–—](?=\s))/gu;
 
 function normalizeBookName(value: string): string {
   return value
@@ -67,7 +67,7 @@ function escapePattern(value: string): string {
 }
 
 function aliasPattern(alias: string): string {
-  return alias.trim().split(/\s+/).map(escapePattern).join("\\s*");
+  return alias.trim().split(/\s+/).map(escapePattern).join("\\s+");
 }
 
 function compileCanon(canon: CanonMetadata): CompiledCanon {
@@ -93,7 +93,7 @@ function compileCanon(canon: CanonMetadata): CompiledCanon {
     .map(aliasPattern)
     .join("|");
   const exactPattern = new RegExp(
-    `(?<![\\p{L}\\p{N}])(${alternatives})\\.?\\s+(\\d{1,3}):(\\d{1,3})(?:\\s*[-–—]\\s*(\\d{1,3}))?(?=[\\s.,;:!?)\\]}"'’”])`,
+    `(?<![\\p{L}\\p{N}])(${alternatives})\\.?\\s+(\\d{1,3}):(\\d{1,3})(?:\\s*[-–—]\\s*(\\d{1,3}))?(?=[\\s.,;:!?)\\]}"'’”…]|[–—](?=\\s))`,
     "giu",
   );
   const compiled = { aliases, exactPattern };
@@ -108,7 +108,9 @@ function overlaps(range: TextRange, excluded: readonly TextRange[]): boolean {
 function likelyUrlContext(text: string, from: number): boolean {
   if (from > 0 && /[/@]/.test(text.charAt(from - 1))) return true;
   const tokenStart = Math.max(text.lastIndexOf(" ", from - 1), text.lastIndexOf("\n", from - 1)) + 1;
-  return text.slice(tokenStart, from).includes("://");
+  const prefix = text.slice(tokenStart, from);
+  return prefix.includes("://")
+    || /(?:^|[<(])(?:[a-z][a-z0-9+.-]*:|www\.[^\s]*)$/iu.test(prefix);
 }
 
 function displayReference(book: CanonBook, chapter: number, verseStart: number, verseEnd?: number): string {

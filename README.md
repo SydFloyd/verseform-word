@@ -34,7 +34,7 @@ npm run dev
 
 Then open Word on the web, choose **Add-ins → Advanced → Upload My Add-in**, and upload `manifest.xml`. The local server must remain running at `https://localhost:3000`.
 
-Use `npm run check` for the local code and structural manifest gate. VFW-010 and VFW-020 have passed their Word on the web host proofs, including live NASB/KJV retrieval, local caching and clearing, editable attribution insertion, one-step Undo, stale-response rejection, and provider-unavailable behavior without prose loss. Broader reference hardening is next; production hosting/Marketplace validation, screen-reader and Windows forced-color validation, and the same-source Word for Windows walk remain release gates.
+Use `npm run check` for the local code and structural manifest gate. VFW-010 and VFW-020 passed their Word on the web host proofs, including live NASB/KJV retrieval, local caching and clearing, editable attribution insertion, one-step Undo, stale-response rejection, and provider-unavailable behavior without prose loss. VFW-030 now adds a versioned English corpus covering every approved canonical name/alias, strict and fuzzy behavior, false positives, mixed-direction UTF-16 offsets, provider isolation, and a 100,000-unit performance budget. Multilingual detection is deliberately deferred pending DBS review and English-pilot feedback. Production hosting/Marketplace validation, accessibility validation, and the same-source Word for Windows walk remain release gates.
 
 ## Project authorities
 

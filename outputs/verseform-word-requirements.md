@@ -21,7 +21,7 @@ Verseform for Word helps a person remain inside Microsoft Word while inserting a
 - Whitespace, punctuation, paragraph breaks, and common closing characters count as delimiters. An unfinished reference is not annotated.
 - URLs, emails, existing generated citations, and representative prose false positives are excluded.
 - Detection never contacts Word services beyond reading the changed paragraph and never contacts DBS.
-- Multilingual detection is a planned capability, not an assumption. DBS's ten-language detector is candidate reference material; adopting its data or code requires corpus-backed ambiguity and bounds proof.
+- Multilingual detection is deferred until DBS has tested and approved the product direction and the English pilot user has supplied practical feedback. Any later language remains a separate capability requiring its own corpus-backed ambiguity, bounds, and Word offset proof; no current behavior claims another language.
 
 ## Scripture and translations
 
