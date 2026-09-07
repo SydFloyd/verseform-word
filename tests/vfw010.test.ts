@@ -7,8 +7,17 @@ import {
   MemoryAnnotationOwnership,
   type AnnotationOwnership,
 } from "../src/app/annotationOwnership";
-import { Vfw010Controller, type Vfw010State } from "../src/app/controller";
-import { candidatesForParagraph, type ParagraphSnapshot } from "../src/app/interaction";
+import {
+  Vfw010Controller,
+  type VerseformControllerOptions,
+  type Vfw010State,
+} from "../src/app/controller";
+import {
+  candidatesForParagraph,
+  referenceTargetForSelection,
+  type ParagraphSnapshot,
+  type SelectionSnapshot,
+} from "../src/app/interaction";
 import type { AnnotatedReference } from "../src/core/freshness";
 import { scanReferences, type ReferenceCandidate } from "../src/core/reference";
 import type { ReplacementResult, WordGateway, WordHostHandlers, WordRuntime } from "../src/office/gateway";
@@ -26,7 +35,7 @@ import type {
   TranslationPreferenceStore,
 } from "../src/core/scripture";
 
-type FakeParagraph = { text: string; revision: number };
+type FakeParagraph = { text: string; revision: number; terminalDelimiter?: boolean };
 type FakeAnnotation = { paragraphId: string; candidate: ReferenceCandidate };
 type ReplacementHistory = { annotationId: string; annotation: FakeAnnotation; previousText: string };
 
@@ -49,9 +58,11 @@ class FakeWordGateway implements WordGateway {
   private readonly replacements: ReplacementHistory[] = [];
   private readBarrier: Promise<void> | undefined;
   private releaseReadBarrier: (() => void) | undefined;
+  private selection: { paragraphId: string; from: number; to: number; previousParagraphId?: string };
 
   public constructor(paragraphId: string, text: string) {
     this.addParagraph(paragraphId, text);
+    this.selection = { paragraphId, from: text.length, to: text.length };
   }
 
   public addParagraph(paragraphId: string, text: string): void {
@@ -80,6 +91,36 @@ class FakeWordGateway implements WordGateway {
     await this.readBarrier;
     const paragraph = this.paragraphs.get(paragraphId);
     return paragraph ? { paragraphId, ...paragraph } : undefined;
+  }
+
+  public async readSelection(): Promise<SelectionSnapshot | undefined> {
+    const paragraph = this.paragraphs.get(this.selection.paragraphId);
+    if (!paragraph) return undefined;
+    const previous = this.selection.previousParagraphId
+      ? this.paragraphs.get(this.selection.previousParagraphId)
+      : undefined;
+    return {
+      paragraph: { paragraphId: this.selection.paragraphId, ...paragraph },
+      selection: { from: this.selection.from, to: this.selection.to },
+      previousParagraph: previous && this.selection.previousParagraphId ? {
+        paragraphId: this.selection.previousParagraphId,
+        ...previous,
+        terminalDelimiter: true,
+      } : undefined,
+    };
+  }
+
+  public setSelection(
+    paragraphId: string,
+    from: number,
+    to = from,
+    previousParagraphId?: string,
+  ): void {
+    this.selection = { paragraphId, from, to, previousParagraphId };
+    if (previousParagraphId) {
+      const previous = this.paragraphs.get(previousParagraphId);
+      if (previous) previous.terminalDelimiter = true;
+    }
   }
 
   public async annotate(paragraph: ParagraphSnapshot, candidate: ReferenceCandidate): Promise<string | undefined> {
@@ -178,6 +219,14 @@ class FakeWordGateway implements WordGateway {
     await Promise.all([...this.handlers].map(async (handler) => handler.onParagraphChanged(paragraphIds)));
   }
 
+  public async emitBoundary(paragraphIds: readonly string[]): Promise<void> {
+    for (const paragraphId of paragraphIds) {
+      const paragraph = this.paragraphs.get(paragraphId);
+      if (paragraph) paragraph.terminalDelimiter = true;
+    }
+    await Promise.all([...this.handlers].map(async (handler) => handler.onParagraphBoundary(paragraphIds)));
+  }
+
   public async mutateWithoutEvent(paragraphId: string, text: string): Promise<void> {
     const paragraph = this.paragraphs.get(paragraphId);
     if (!paragraph) throw new Error("Missing fake paragraph");
@@ -268,6 +317,7 @@ function controllerFor(
   ownership: AnnotationOwnership = new MemoryAnnotationOwnership(),
   scripture?: ScriptureProvider,
   preference?: TranslationPreferenceStore,
+  options?: VerseformControllerOptions,
 ): { controller: Vfw010Controller; states: Vfw010State[] } {
   const states: Vfw010State[] = [];
   const controller = new Vfw010Controller(
@@ -276,11 +326,61 @@ function controllerFor(
     ownership,
     scripture,
     preference,
+    options,
   );
   return { controller, states };
 }
 
 describe("VFW-010 interaction kernel", () => {
+  it("resolves the reference at or immediately before a collapsed cursor", () => {
+    const paragraph: ParagraphSnapshot = {
+      paragraphId: "paragraph-1",
+      text: "John 3:16 and James 1:17.  ",
+      revision: 0,
+    };
+    expect(referenceTargetForSelection({
+      paragraph,
+      selection: { from: paragraph.text.length, to: paragraph.text.length },
+    })?.candidate).toMatchObject({ sourceText: "James 1:17", from: 14, to: 24 });
+    expect(referenceTargetForSelection({
+      paragraph,
+      selection: { from: 2, to: 2 },
+    })?.candidate).toMatchObject({ sourceText: "John 3:16", from: 0, to: 9 });
+
+    const noTypedDelimiter: ParagraphSnapshot = {
+      paragraphId: "paragraph-2",
+      text: "John 3:16",
+      revision: 0,
+    };
+    expect(referenceTargetForSelection({
+      paragraph: noTypedDelimiter,
+      selection: { from: noTypedDelimiter.text.length, to: noTypedDelimiter.text.length },
+    })?.candidate.sourceText).toBe("John 3:16");
+  });
+
+  it("requires a text selection to touch exactly one reference and can use the previous paragraph", () => {
+    const paragraph: ParagraphSnapshot = {
+      paragraphId: "paragraph-1",
+      text: "John 3:16 and James 1:17.",
+      revision: 0,
+    };
+    expect(referenceTargetForSelection({
+      paragraph,
+      selection: { from: 1, to: 5 },
+    })?.candidate.sourceText).toBe("John 3:16");
+    expect(referenceTargetForSelection({
+      paragraph,
+      selection: { from: 0, to: paragraph.text.length },
+    })).toBeUndefined();
+
+    const current: ParagraphSnapshot = { paragraphId: "paragraph-2", text: "", revision: 0 };
+    expect(referenceTargetForSelection({
+      paragraph: current,
+      selection: { from: 0, to: 0 },
+      previousParagraph: { ...paragraph, terminalDelimiter: true },
+    })?.candidate.sourceText).toBe("James 1:17");
+  });
+
   it("waits for a delimiter and uses UTF-16 offsets that include surrogate pairs", async () => {
     const match = scanReferences("🙂 John 3:16.")[0];
     expect(match).toMatchObject({ from: 3, to: 12, sourceText: "John 3:16" });
@@ -1110,8 +1210,7 @@ describe("VFW-020 provider integration", () => {
 
     await controller.insertSelected();
     expect(word.paragraphs.get("paragraph-1")?.text).toBe(
-      "Read DBS test verse 16 for JHN. (John 3:16, NASB)\n"
-      + "New American Standard Bible (NASB): © The Lockman Foundation.",
+      "Read DBS test verse 16 for JHN. (John 3:16, NASB).",
     );
     expect(word.replaceCalls).toBe(1);
   });
@@ -1134,8 +1233,7 @@ describe("VFW-020 provider integration", () => {
     expect(scripture.calls).toHaveLength(1);
     expect(word.replaceCalls).toBe(1);
     expect(word.paragraphs.get("paragraph-1")?.text).toBe(
-      "Read DBS test verse 16 for JHN. (John 3:16, NASB)\n"
-      + "New American Standard Bible (NASB): © The Lockman Foundation.",
+      "Read DBS test verse 16 for JHN. (John 3:16, NASB).",
     );
   });
 
@@ -1171,6 +1269,102 @@ describe("VFW-020 provider integration", () => {
     expect(scripture.calls).toHaveLength(1);
     expect(word.replaceCalls).toBe(1);
     expect(word.paragraphs.get("paragraph-1")?.text).toContain("(John 3:16, NASB)");
+  });
+
+  it("fills the reference at the cursor without a delivered paragraph or annotation event", async () => {
+    const word = new FakeWordGateway("paragraph-1", "John 3:16");
+    const scripture = new RecordedScriptureProvider();
+    const { controller } = controllerFor(word, new MemoryAnnotationOwnership(), scripture);
+    await controller.start();
+
+    expect(word.annotations.size).toBe(0);
+    await controller.fillAtSelection();
+
+    expect(scripture.calls).toHaveLength(1);
+    expect(word.replaceCalls).toBe(1);
+    expect(word.paragraphs.get("paragraph-1")?.text).toBe(
+      "DBS test verse 16 for JHN. (John 3:16, NASB)",
+    );
+  });
+
+  it("fills the completed reference before a new paragraph and refuses a changed request", async () => {
+    const word = new FakeWordGateway("paragraph-1", "James 1:17");
+    word.addParagraph("paragraph-2", "");
+    word.setSelection("paragraph-2", 0, 0, "paragraph-1");
+    const scripture = new RecordedScriptureProvider();
+    const { controller } = controllerFor(word, new MemoryAnnotationOwnership(), scripture);
+    await controller.start();
+    const deferred = scripture.deferNextPassage();
+
+    const fill = controller.fillAtSelection();
+    await deferred.started;
+    await word.mutateWithoutEvent("paragraph-1", "James 1:18");
+    deferred.release();
+    await fill;
+
+    expect(scripture.calls).toHaveLength(1);
+    expect(word.replaceCalls).toBe(0);
+    expect(word.paragraphs.get("paragraph-1")?.text).toBe("James 1:18");
+    expect(controller.getState().title).toBe("Writing changed before insertion");
+  });
+
+  it("reveals the optional pane only when Fill Scripture has no unambiguous target", async () => {
+    const word = new FakeWordGateway("paragraph-1", "John 3:16 and James 1:17.");
+    word.setSelection("paragraph-1", 0, 27);
+    const onInteractionNeedsAttention = vi.fn();
+    const { controller } = controllerFor(
+      word,
+      new MemoryAnnotationOwnership(),
+      new RecordedScriptureProvider(),
+      undefined,
+      { onInteractionNeedsAttention },
+    );
+    await controller.start();
+
+    await controller.fillAtSelection();
+
+    expect(word.replaceCalls).toBe(0);
+    expect(controller.getState().title).toBe("Place the cursor by one reference");
+    expect(onInteractionNeedsAttention).toHaveBeenCalledTimes(1);
+  });
+
+  it("marks a valid reference when Word reports a real paragraph break", async () => {
+    const word = new FakeWordGateway("paragraph-1", "James 4:17");
+    const { controller } = controllerFor(word);
+    await controller.start();
+
+    await word.change("paragraph-1", "James 4:17");
+    expect(word.annotations.size).toBe(0);
+
+    await word.emitBoundary(["paragraph-1"]);
+
+    expect([...word.annotations.values()].map(({ candidate }) => candidate)).toMatchObject([{
+      sourceText: "James 4:17",
+      reference: { bookId: "JAS", chapter: 4, verseStart: 17 },
+    }]);
+
+    // Word may deliver the added and changed notifications in either order.
+    await word.emitChanged(["paragraph-1"]);
+    expect([...word.annotations.values()]).toHaveLength(1);
+  });
+
+  it("keeps hover passive while the optional pane is hidden and still inserts on click", async () => {
+    const word = new FakeWordGateway("paragraph-1", "Read John 3:16.");
+    const scripture = new RecordedScriptureProvider();
+    const { controller } = controllerFor(word, new MemoryAnnotationOwnership(), scripture);
+    controller.setPreviewOnHover(false);
+    await controller.start();
+    await word.change("paragraph-1", "Read John 3:16.");
+    const [annotationId] = word.annotations.keys();
+
+    await word.activate(annotationId!, "hovered");
+    expect(scripture.calls).toHaveLength(0);
+    expect(word.replaceCalls).toBe(0);
+    expect(controller.getState()).toMatchObject({ phase: "watching", canInsert: false });
+
+    await word.activate(annotationId!, "clicked");
+    expect(scripture.calls).toHaveLength(1);
+    expect(word.replaceCalls).toBe(1);
   });
 
   it("refuses click-to-insert when the reference changes during its DBS request", async () => {
@@ -1287,11 +1481,18 @@ describe("VFW-020 provider integration", () => {
     const word = new FakeWordGateway("paragraph-1", "Read John 3:16.");
     const scripture = new RecordedScriptureProvider();
     scripture.failPassage = true;
-    const { controller } = controllerFor(word, new MemoryAnnotationOwnership(), scripture);
+    const onInteractionNeedsAttention = vi.fn();
+    const { controller } = controllerFor(
+      word,
+      new MemoryAnnotationOwnership(),
+      scripture,
+      undefined,
+      { onInteractionNeedsAttention },
+    );
     await controller.start();
     await word.change("paragraph-1", "Read John 3:16.");
     const [annotationId] = word.annotations.keys();
-    await word.activate(annotationId!);
+    await word.activate(annotationId!, "clicked");
 
     expect(controller.getState()).toMatchObject({
       title: "Scripture text is unavailable",
@@ -1299,6 +1500,7 @@ describe("VFW-020 provider integration", () => {
     });
     expect(word.paragraphs.get("paragraph-1")?.text).toBe("Read John 3:16.");
     expect(word.annotations.has(annotationId!)).toBe(true);
+    expect(onInteractionNeedsAttention).toHaveBeenCalledTimes(1);
     await controller.clearScriptureCache();
     expect(scripture.clearCalls).toBe(1);
     expect(controller.getState().title).toBe("Local Scripture cache cleared");
@@ -1394,6 +1596,19 @@ describe("Word host capability contract", () => {
 
       vi.stubGlobal("Office", {
         HostType: { Word: "Word" },
+        context: {
+          host: "Word",
+          requirements: { isSetSupported: vi.fn((name: string) => name === "WordApi") },
+        },
+      });
+      expect(inspectWordHost()).toEqual({
+        kind: "blocked",
+        title: "Word needs background add-in support",
+        detail: "Verseform requires SharedRuntime 1.1 so detection can continue while its optional pane is closed.",
+      });
+
+      vi.stubGlobal("Office", {
+        HostType: { Word: "Word" },
         context: { host: "Word", requirements: { isSetSupported: vi.fn(() => true) } },
       });
       expect(inspectWordHost()).toMatchObject({ kind: "ready", title: "Word is ready" });
@@ -1413,6 +1628,7 @@ type OfficeRegistration = { remove: ReturnType<typeof vi.fn> };
 function noopHandlers(): WordHostHandlers {
   return {
     onParagraphChanged: async () => undefined,
+    onParagraphBoundary: async () => undefined,
     onAnnotationActivated: async () => undefined,
     onAnnotationRemoved: async () => undefined,
   };
@@ -1483,13 +1699,93 @@ function annotationCurrentFixture(overrides: {
 }
 
 describe("Office gateway adapter seam", () => {
+  it("maps Word's current selection to UTF-16 paragraph offsets and structural neighbors", async () => {
+    const selectionStart = { marker: "start" };
+    const selectionEnd = { marker: "end" };
+    const prefixToStart = { text: "Read ", load: vi.fn() };
+    const prefixToEnd = { text: "Read John 3:16", load: vi.fn() };
+    const paragraphStart = {
+      expandTo: vi.fn((target: unknown) => target === selectionStart ? prefixToStart : prefixToEnd),
+    };
+    const previous = { isNullObject: true, text: "", uniqueLocalId: "", load: vi.fn() };
+    const next = { isNullObject: false, uniqueLocalId: "paragraph-2", load: vi.fn() };
+    const paragraph = {
+      text: "Read John 3:16.",
+      uniqueLocalId: "paragraph-1",
+      load: vi.fn(),
+      getRange: vi.fn(() => paragraphStart),
+      getPreviousOrNullObject: vi.fn(() => previous),
+      getNextOrNullObject: vi.fn(() => next),
+    };
+    const selectedParagraphs = {
+      items: [paragraph],
+      load: vi.fn(),
+      getFirst: vi.fn(() => paragraph),
+    };
+    const selection = {
+      paragraphs: selectedParagraphs,
+      getRange: vi.fn((location: string) => location === "Start" ? selectionStart : selectionEnd),
+    };
+    const context = {
+      document: { getSelection: vi.fn(() => selection) },
+      sync: vi.fn(async () => undefined),
+    };
+    vi.stubGlobal("Word", {
+      run: vi.fn(async (batch: (active: typeof context) => Promise<unknown>) => batch(context)),
+    });
+    try {
+      await expect(new OfficeWordGateway().readSelection()).resolves.toEqual({
+        paragraph: {
+          paragraphId: "paragraph-1",
+          text: "Read John 3:16.",
+          revision: 0,
+          terminalDelimiter: true,
+        },
+        selection: { from: 5, to: 14 },
+        previousParagraph: undefined,
+      });
+      expect(prefixToStart.load).toHaveBeenCalledWith("text");
+      expect(prefixToEnd.load).toHaveBeenCalledWith("text");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("exposes a terminal delimiter only when Word confirms a following paragraph", async () => {
+    const snapshots: Array<boolean | undefined> = [];
+    for (const isNullObject of [false, true]) {
+      const nextParagraph = { isNullObject, load: vi.fn() };
+      const paragraph = {
+        text: "James 4:17",
+        uniqueLocalId: "paragraph-1",
+        getNextOrNullObject: vi.fn(() => nextParagraph),
+        load: vi.fn(),
+      };
+      const context = {
+        document: { getParagraphByUniqueLocalId: vi.fn(() => paragraph) },
+        sync: vi.fn(async () => undefined),
+      };
+      vi.stubGlobal("Word", {
+        run: vi.fn(async (batch: (active: typeof context) => Promise<unknown>) => batch(context)),
+      });
+      try {
+        snapshots.push((await new OfficeWordGateway().readParagraph("paragraph-1"))?.terminalDelimiter);
+        expect(nextParagraph.load).toHaveBeenCalledWith("uniqueLocalId");
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    }
+    expect(snapshots).toEqual([true, false]);
+  });
+
   it("cleans partial registration, unregisters exact handlers through the retained document context, and attempts every removal", async () => {
     const first: OfficeRegistration = { remove: vi.fn() };
     const second: OfficeRegistration = { remove: vi.fn() };
     const partialDocument = {
       onParagraphChanged: eventSource(first),
-      onAnnotationHovered: eventSource(second),
-      onAnnotationClicked: { add: vi.fn(() => { throw new Error("third registration failed"); }) },
+      onParagraphAdded: eventSource(second),
+      onAnnotationHovered: { add: vi.fn(() => { throw new Error("third registration failed"); }) },
+      onAnnotationClicked: eventSource({ remove: vi.fn() }),
       onAnnotationRemoved: eventSource({ remove: vi.fn() }),
     };
     const partialContext = { document: partialDocument, sync: vi.fn(async () => undefined) };
@@ -1512,12 +1808,14 @@ describe("Office gateway adapter seam", () => {
       { remove: vi.fn(() => { throw new Error("one removal failed"); }) },
       { remove: vi.fn() },
       { remove: vi.fn() },
+      { remove: vi.fn() },
     ];
     const retainedDocument = {
       onParagraphChanged: eventSource(registrations[0]!),
-      onAnnotationHovered: eventSource(registrations[1]!),
-      onAnnotationClicked: eventSource(registrations[2]!),
-      onAnnotationRemoved: eventSource(registrations[3]!),
+      onParagraphAdded: eventSource(registrations[1]!),
+      onAnnotationHovered: eventSource(registrations[2]!),
+      onAnnotationClicked: eventSource(registrations[3]!),
+      onAnnotationRemoved: eventSource(registrations[4]!),
     };
     const retainedContext = { document: retainedDocument, sync: vi.fn(async () => undefined) };
     const retainedRun = vi.fn(async (...args: unknown[]) => {
@@ -1533,6 +1831,47 @@ describe("Office gateway adapter seam", () => {
       expect(retainedContext.sync).toHaveBeenCalledTimes(2);
       await expect(runtime.stop()).rejects.toThrow("one removal failed");
       for (const registration of registrations) expect(registration.remove).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("maps Word's paragraph-added event to the exact preceding paragraph", async () => {
+    let paragraphAdded: ((event: { uniqueLocalIds: readonly string[] }) => Promise<void>) | undefined;
+    const previous = {
+      isNullObject: false,
+      uniqueLocalId: "paragraph-1",
+      load: vi.fn(),
+    };
+    const added = { getPreviousOrNullObject: vi.fn(() => previous) };
+    const registration = (): OfficeRegistration => ({ remove: vi.fn() });
+    const document = {
+      getParagraphByUniqueLocalId: vi.fn(() => added),
+      onParagraphChanged: eventSource(registration()),
+      onParagraphAdded: {
+        add: vi.fn((callback: typeof paragraphAdded) => {
+          paragraphAdded = callback;
+          return registration();
+        }),
+      },
+      onAnnotationHovered: eventSource(registration()),
+      onAnnotationClicked: eventSource(registration()),
+      onAnnotationRemoved: eventSource(registration()),
+    };
+    const context = { document, sync: vi.fn(async () => undefined) };
+    const run = vi.fn(async (...args: unknown[]) => {
+      const batch = typeof args[0] === "function" ? args[0] : args[1];
+      return (batch as (context: unknown) => Promise<unknown>)(context);
+    });
+    const onParagraphBoundary = vi.fn(async () => undefined);
+    vi.stubGlobal("Word", { run });
+    try {
+      await new OfficeWordGateway().start({ ...noopHandlers(), onParagraphBoundary });
+      expect(paragraphAdded).toBeTypeOf("function");
+      await paragraphAdded?.({ uniqueLocalIds: ["paragraph-2"] });
+      expect(document.getParagraphByUniqueLocalId).toHaveBeenCalledWith("paragraph-2");
+      expect(previous.load).toHaveBeenCalledWith("uniqueLocalId");
+      expect(onParagraphBoundary).toHaveBeenCalledWith(["paragraph-1"]);
     } finally {
       vi.unstubAllGlobals();
     }
@@ -1644,6 +1983,34 @@ class FakeElement {
 }
 
 describe("task-pane DOM harness", () => {
+  it("releases Word's ribbon command and never tears down for pane pagehide", () => {
+    const source = readFileSync("src/main.ts", "utf8");
+    const start = source.indexOf("function enableVerseform");
+    const end = source.indexOf("\n}\n\nif (typeof Office", start);
+    const enableFunction = source.slice(start, end);
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(end).toBeGreaterThan(start);
+    expect(enableFunction.indexOf("event?.completed()")).toBeLessThan(
+      enableFunction.indexOf("ensureStarted()"),
+    );
+    expect(source).not.toContain('addEventListener("pagehide"');
+    expect(source).not.toMatch(/pagehide[\s\S]{0,200}controller\?\.stop/u);
+  });
+
+  it("maps Fill Scripture to the pane-independent selection command and completes Word last", () => {
+    const source = readFileSync("src/main.ts", "utf8");
+    const start = source.indexOf("function fillScripture");
+    const end = source.indexOf("\n}\n\nif (typeof Office", start);
+    const fillFunction = source.slice(start, end);
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(end).toBeGreaterThan(start);
+    expect(fillFunction.indexOf("event?.completed()")).toBeGreaterThan(
+      fillFunction.indexOf("controller?.fillAtSelection()"),
+    );
+    expect(fillFunction).toContain("controller?.fillAtSelection()");
+    expect(source).toContain('Office.actions.associate("fillScripture", fillScripture)');
+  });
+
   it("announces preview markup, catches UI action rejection, focuses status, and exposes Cancel", async () => {
     const source = readFileSync("index.html", "utf8");
     const styles = readFileSync("src/styles.css", "utf8");
@@ -1652,6 +2019,7 @@ describe("task-pane DOM harness", () => {
     expect(source).toMatch(/id="preview-card"[^>]*aria-live="polite"/u);
     expect(source).toContain('id="preview-attribution"');
     expect(source).toContain('id="translation-select"');
+    expect(source).toContain('id="translation-notice"');
     expect(source).toContain('id="clear-cache-button"');
     expect(source).toContain('id="cancel-button"');
     expect(styles).toMatch(/color-scheme:\s*light dark/u);
@@ -1664,7 +2032,8 @@ describe("task-pane DOM harness", () => {
       [".status-card", new FakeElement()], ["#status-title", new FakeElement()], ["#status-detail", new FakeElement()],
       ["#preview-card", new FakeElement()], ["#preview-heading", new FakeElement()], ["#preview-text", new FakeElement()],
       ["#preview-attribution", new FakeElement()], ["#insert-button", new FakeElement()], ["#cancel-button", new FakeElement()],
-      ["#translation-select", new FakeElement()], ["#clear-cache-button", new FakeElement()],
+      ["#translation-select", new FakeElement()], ["#translation-notice", new FakeElement()],
+      ["#clear-cache-button", new FakeElement()],
     ]);
     vi.stubGlobal("document", {
       querySelector: (selector: string) => elements.get(selector) ?? null,
@@ -1697,6 +2066,7 @@ describe("task-pane DOM harness", () => {
       expect(elements.get("#translation-select")?.children).toHaveLength(2);
       expect(elements.get("#translation-select")?.value).toBe("ENGNASB");
       expect(elements.get("#translation-select")?.disabled).toBe(false);
+      expect(elements.get("#translation-notice")?.textContent).toContain("Lockman Foundation");
       elements.get("#translation-select")!.value = "ENGTEST";
       elements.get("#translation-select")?.change();
       elements.get("#clear-cache-button")?.click();

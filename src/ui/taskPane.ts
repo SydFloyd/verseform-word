@@ -27,6 +27,7 @@ export function mountTaskPane(): MountedTaskPane {
   const insert = required<HTMLButtonElement>("#insert-button");
   const cancel = required<HTMLButtonElement>("#cancel-button");
   const translation = required<HTMLSelectElement>("#translation-select");
+  const translationNotice = required<HTMLElement>("#translation-notice");
   const clearCache = required<HTMLButtonElement>("#clear-cache-button");
   let insertAction: (() => Promise<void>) | undefined;
   let cancelAction: (() => Promise<void>) | undefined;
@@ -94,6 +95,7 @@ export function mountTaskPane(): MountedTaskPane {
       }
       translation.value = view.translation.selectedId;
       translation.disabled = view.translation.disabled;
+      translationNotice.textContent = view.translation.notice;
       clearCache.disabled = view.clearCache.disabled;
       if (view.focusTarget === "status") title.focus();
     },

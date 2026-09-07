@@ -101,6 +101,24 @@ describe("local reference detection", () => {
     for (const input of corpus.unfinished) expect(scanReferences(input), input).toEqual([]);
   });
 
+  it("recognizes the two pilot references and treats Word's paragraph mark as a delimiter", () => {
+    expect(scanReferences("Hosea 1:1 ")).toMatchObject([{
+      kind: "valid",
+      sourceText: "Hosea 1:1",
+      reference: { bookId: "HOS", chapter: 1, verseStart: 1 },
+    }]);
+    expect(scanReferences("James 4:17 ")).toMatchObject([{
+      kind: "valid",
+      sourceText: "James 4:17",
+      reference: { bookId: "JAS", chapter: 4, verseStart: 17 },
+    }]);
+    expect(scanReferences("James 4:17")).toEqual([]);
+    expect(candidatesForParagraph("James 4:17", { terminalDelimiter: true })).toMatchObject([{
+      sourceText: "James 4:17",
+      reference: { bookId: "JAS", chapter: 4, verseStart: 17 },
+    }]);
+  });
+
   it("rejects URL, email, compact-identifier, numeric-prose, and excluded-range cases", () => {
     for (const input of corpus.falsePositives) expect(scanReferences(input), input).toEqual([]);
     expect(scanReferences("Keep John 3:16 and Romans 8:28. ", [{ from: 5, to: 14 }]))

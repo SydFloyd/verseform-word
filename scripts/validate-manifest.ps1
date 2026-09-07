@@ -24,7 +24,7 @@ if ($null -eq $root -or $root.LocalName -ne "OfficeApp") {
 
 $requiredText = @{
   "Id" = "82d488fc-c5a7-4aa5-8133-d56c32ef9a69"
-  "Version" = "1.0.0.0"
+  "Version" = "1.0.0.5"
   "Permissions" = "ReadWriteDocument"
 }
 
@@ -70,10 +70,68 @@ if ($wordSets.Count -lt 2) {
 }
 
 foreach ($set in $wordSets) {
-  $minimum = $set.ParentNode.GetAttribute("DefaultMinVersion")
+  $minimum = $set.GetAttribute("MinVersion")
+  if (-not $minimum) {
+    $minimum = $set.ParentNode.GetAttribute("DefaultMinVersion")
+  }
   if ($minimum -ne "1.7") {
     throw "manifest.xml must require WordApi 1.7."
   }
+}
+
+$sharedRuntimeSets = @($root.SelectNodes(".//*[local-name()='Set' and @Name='SharedRuntime']"))
+if ($sharedRuntimeSets.Count -lt 2) {
+  throw "manifest.xml must require SharedRuntime in both base and command surfaces."
+}
+foreach ($set in $sharedRuntimeSets) {
+  $minimum = $set.GetAttribute("MinVersion")
+  if (-not $minimum) {
+    $minimum = $set.ParentNode.GetAttribute("DefaultMinVersion")
+  }
+  if ($minimum -ne "1.1") {
+    throw "manifest.xml must require SharedRuntime 1.1."
+  }
+}
+
+$runtimes = @($root.SelectNodes(".//*[local-name()='Runtimes']/*[local-name()='Runtime']"))
+if ($runtimes.Count -ne 1 -or $runtimes[0].GetAttribute("resid") -ne "Taskpane.Url" -or $runtimes[0].GetAttribute("lifetime") -ne "long") {
+  throw "manifest.xml must use the task-pane page as one long shared runtime."
+}
+
+$functionFile = $root.SelectSingleNode(".//*[local-name()='FunctionFile']")
+if ($null -eq $functionFile -or $functionFile.GetAttribute("resid") -ne "Taskpane.Url") {
+  throw "manifest.xml commands must share the task-pane runtime."
+}
+
+$enableAction = $root.SelectSingleNode(".//*[local-name()='Control' and @id='Verseform.Enable']/*[local-name()='Action' and @*[local-name()='type']='ExecuteFunction']")
+if ($null -eq $enableAction -or $enableAction.SelectSingleNode("./*[local-name()='FunctionName']").InnerText -ne "enableVerseform") {
+  throw "manifest.xml must expose the background Enable Verseform command."
+}
+
+$fillActions = @($root.SelectNodes(".//*[local-name()='Control' and (@id='Verseform.Fill' or @id='Verseform.FillContext')]/*[local-name()='Action' and @*[local-name()='type']='ExecuteFunction']"))
+if ($fillActions.Count -ne 2 -or @($fillActions | Where-Object { $_.SelectSingleNode("./*[local-name()='FunctionName']").InnerText -ne "fillScripture" }).Count -ne 0) {
+  throw "manifest.xml must expose Fill Scripture on the ribbon and text context menu."
+}
+$contextMenu = $root.SelectSingleNode(".//*[local-name()='ExtensionPoint' and @*[local-name()='type']='ContextMenu']/*[local-name()='OfficeMenu' and @id='ContextMenuText']")
+if ($null -eq $contextMenu) {
+  throw "manifest.xml must expose Fill Scripture in Word's selected-text context menu."
+}
+
+$paneAction = $root.SelectSingleNode(".//*[local-name()='Control' and @id='Verseform.ShowTaskpane']/*[local-name()='Action' and @*[local-name()='type']='ShowTaskpane']")
+if ($null -eq $paneAction) {
+  throw "manifest.xml must expose the optional preview and settings pane."
+}
+$taskpaneIds = @($root.SelectNodes(".//*[local-name()='Action']/*[local-name()='TaskpaneId']"))
+if ($taskpaneIds.Count -ne 0) {
+  throw "Microsoft's long shared-runtime configuration must not declare TaskpaneId."
+}
+$paneSource = $paneAction.SelectSingleNode("./*[local-name()='SourceLocation']")
+if ($null -eq $paneSource -or $paneSource.GetAttribute("resid") -ne "Taskpane.Url") {
+  throw "The optional pane must use the same resource ID as the long runtime and function file."
+}
+
+if ($null -ne $root.SelectSingleNode("./*[local-name()='ExtendedOverrides']")) {
+  throw "Do not advertise an add-in shortcut until its host registration is proved."
 }
 
 $urls = @($root.SelectNodes(".//*[(local-name()='SourceLocation' or local-name()='Url' or local-name()='Image' or local-name()='IconUrl' or local-name()='HighResolutionIconUrl' or local-name()='SupportUrl') and @DefaultValue]"))

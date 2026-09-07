@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host localhost",
-    "desktop:start": "npx --yes office-addin-debugging@6.1.2 start manifest.xml desktop --app Word --dev-server \"npm run dev\" --dev-server-port 3000 --no-debug",
+    "desktop:serve": "vite preview --host localhost --port 3000 --strictPort",
+    "desktop:start": "npm run build && npx --yes office-addin-debugging@6.1.2 start manifest.xml desktop --app Word --dev-server \"npm run desktop:serve\" --dev-server-port 3000 --no-debug",
     "desktop:stop": "npx --yes office-addin-debugging@6.1.2 stop manifest.xml",
     "build": "tsc -b && vite build",
     "manifest:production": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build-production-manifest.ps1",

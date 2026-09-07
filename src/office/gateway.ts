@@ -1,4 +1,4 @@
-import type { ParagraphSnapshot } from "../app/interaction";
+import type { ParagraphSnapshot, SelectionSnapshot } from "../app/interaction";
 import type { AnnotatedReference } from "../core/freshness";
 import type { ReferenceCandidate } from "../core/reference";
 
@@ -6,6 +6,8 @@ export type AnnotationActivation = "hovered" | "clicked";
 
 export type WordHostHandlers = {
   onParagraphChanged(paragraphIds: readonly string[]): Promise<void>;
+  /** Paragraphs that Word proved now end at a user-created paragraph break. */
+  onParagraphBoundary(paragraphIds: readonly string[]): Promise<void>;
   onAnnotationActivated(annotationId: string, activation: AnnotationActivation): Promise<void>;
   onAnnotationRemoved(annotationIds: readonly string[]): Promise<void>;
 };
@@ -33,6 +35,7 @@ export interface WordRuntime {
 export interface WordGateway {
   start(handlers: WordHostHandlers): Promise<WordRuntime>;
   readParagraph(paragraphId: string): Promise<ParagraphSnapshot | undefined>;
+  readSelection(): Promise<SelectionSnapshot | undefined>;
   annotate(paragraph: ParagraphSnapshot, candidate: ReferenceCandidate): Promise<string | undefined>;
   removeAnnotations(annotationIds: readonly string[]): Promise<AnnotationRemovalResult>;
   isAnnotationCurrent(annotation: AnnotatedReference): Promise<boolean>;

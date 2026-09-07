@@ -20,6 +20,7 @@ import {
   candidatesForParagraph,
   fakePreviewFor,
   LocalProofScriptureProvider,
+  referenceTargetForSelection,
   type ParagraphSnapshot,
   VFW010_TRANSLATION,
 } from "./interaction";
@@ -49,6 +50,12 @@ export type Vfw010Phase = VerseformPhase;
 export type Vfw010State = VerseformState;
 
 export type StateListener = (state: Readonly<VerseformState>) => void;
+
+export type VerseformControllerOptions = {
+  previewOnHover?: boolean;
+  /** Reveal the optional pane when an explicit insertion cannot reach Scripture. */
+  onInteractionNeedsAttention?: () => void;
+};
 
 const initialState: VerseformState = {
   phase: "starting",
@@ -101,6 +108,8 @@ export class VerseformController {
   private catalogPhase: CatalogPhase = "loading";
   private translations: Translation[] = [];
   private selectedTranslationId: string | undefined;
+  private previewOnHover: boolean;
+  private readonly onInteractionNeedsAttention: () => void;
 
   public constructor(
     private readonly word: WordGateway,
@@ -108,10 +117,19 @@ export class VerseformController {
     private readonly ownership: AnnotationOwnership = new MemoryAnnotationOwnership(),
     private readonly scripture: ScriptureProvider = new LocalProofScriptureProvider(),
     private readonly preference: TranslationPreferenceStore = new MemoryTranslationPreference(),
-  ) {}
+    options: VerseformControllerOptions = {},
+  ) {
+    this.previewOnHover = options.previewOnHover ?? true;
+    this.onInteractionNeedsAttention = options.onInteractionNeedsAttention ?? (() => undefined);
+  }
 
   public getState(): Readonly<VerseformState> {
     return this.state;
+  }
+
+  /** The optional pane may request hover previews without owning detection. */
+  public setPreviewOnHover(enabled: boolean): void {
+    this.previewOnHover = enabled;
   }
 
   /** Idempotently bind one set of handlers for this task-pane lifetime. */
@@ -389,6 +407,75 @@ export class VerseformController {
     }
   }
 
+  /**
+   * Pane-independent command path for hosts that keep native annotation UI
+   * dormant while the task pane is hidden. The command captures one local
+   * selection target, refreshes that paragraph, then reuses the exact
+   * annotation/freshness/DBS/replace path used by annotation activation.
+   */
+  public async fillAtSelection(): Promise<void> {
+    if (this.pendingInsert) return;
+    const generation = this.runtimeGeneration;
+    let targetAnnotationId: string | undefined;
+    let previewTask: Promise<void> | undefined;
+
+    try {
+      await this.serial(async () => {
+        if (!this.isCurrent(generation)) return;
+        const selection = await this.word.readSelection();
+        if (!this.isCurrent(generation)) return;
+        const target = selection ? referenceTargetForSelection(selection) : undefined;
+        if (!target) {
+          this.publish({
+            phase: "watching",
+            title: "Place the cursor by one reference",
+            detail: "No text changed. Put the cursor in or immediately after one completed reference, then choose Fill Scripture again.",
+            canInsert: false,
+            canCancel: false,
+            focusTarget: "status",
+          });
+          this.revealInteractionFailure();
+          return;
+        }
+
+        // Do not depend on a background paragraph event having been delivered
+        // or on Word having painted its temporary annotation while hidden.
+        await this.refreshParagraph(target.paragraph.paragraphId, generation, true);
+        if (!this.isCurrent(generation)) return;
+        const annotation = [...this.annotations.values()].find((item) => (
+          item.paragraphId === target.paragraph.paragraphId
+          && item.range.from === target.candidate.from
+          && item.range.to === target.candidate.to
+          && item.sourceText === target.candidate.sourceText
+        ));
+        if (!annotation) {
+          this.publish({
+            phase: "watching",
+            title: "Reference changed before filling",
+            detail: "No text changed. Place the cursor by the completed reference and try again.",
+            canInsert: false,
+            canCancel: false,
+            focusTarget: "status",
+          });
+          this.revealInteractionFailure();
+          return;
+        }
+
+        targetAnnotationId = annotation.annotationId;
+        previewTask = (await this.activate(annotation.annotationId, generation, true))?.previewTask;
+      });
+      await previewTask;
+      if (targetAnnotationId && this.isInsertReadyFor(targetAnnotationId)) {
+        await this.insertSelected();
+      }
+    } catch {
+      if (this.isCurrent(generation)) {
+        this.hostFailure("Word could not read the reference at the cursor");
+        this.revealInteractionFailure();
+      }
+    }
+  }
+
   private handlers(generation: number): WordHostHandlers {
     return {
       onParagraphChanged: async (paragraphIds) => {
@@ -399,12 +486,25 @@ export class VerseformController {
           }
         });
       },
+      onParagraphBoundary: async (paragraphIds) => {
+        await this.runEvent(generation, async () => {
+          for (const paragraphId of paragraphIds) {
+            if (!this.isCurrent(generation)) return;
+            await this.refreshParagraph(paragraphId, generation);
+          }
+        });
+      },
       onAnnotationActivated: async (annotationId, activation) => {
+        if (activation === "hovered" && !this.previewOnHover) return;
         let previewTask: Promise<void> | undefined;
         await this.runEvent(generation, async () => {
           if (this.pendingInsert) return;
           if (activation === "clicked" && this.isInsertReadyFor(annotationId)) return;
-          previewTask = (await this.activate(annotationId, generation))?.previewTask;
+          previewTask = (await this.activate(
+            annotationId,
+            generation,
+            activation === "clicked",
+          ))?.previewTask;
         });
         await previewTask;
         if (activation === "clicked" && this.isInsertReadyFor(annotationId)) {
@@ -448,13 +548,21 @@ export class VerseformController {
     }
   }
 
-  private async refreshParagraph(paragraphId: string, generation: number): Promise<void> {
+  private async refreshParagraph(
+    paragraphId: string,
+    generation: number,
+    commandCompletesParagraphEnd = false,
+  ): Promise<void> {
     const paragraph = await this.word.readParagraph(paragraphId);
     if (!paragraph || !this.isCurrent(generation)) return;
 
     const revision = (this.paragraphRevisions.get(paragraphId) ?? 0) + 1;
     this.paragraphRevisions.set(paragraphId, revision);
-    const snapshot: ParagraphSnapshot = { ...paragraph, revision };
+    const snapshot: ParagraphSnapshot = {
+      ...paragraph,
+      revision,
+      terminalDelimiter: paragraph.terminalDelimiter || commandCompletesParagraphEnd,
+    };
 
     const oldAnnotations = [...this.annotations.values()]
       .filter((annotation) => annotation.paragraphId === paragraphId);
@@ -492,7 +600,9 @@ export class VerseformController {
     }
     if (!this.isCurrent(generation)) return;
 
-    const candidates = candidatesForParagraph(snapshot.text);
+    const candidates = candidatesForParagraph(snapshot.text, {
+      terminalDelimiter: snapshot.terminalDelimiter,
+    });
     let marked = 0;
     for (const candidate of candidates) {
       if (await this.restoreRetiredAnnotation(snapshot, candidate)) {
@@ -667,6 +777,7 @@ export class VerseformController {
   private async activate(
     annotationId: string,
     generation: number,
+    revealOnFailure: boolean,
   ): Promise<{ previewTask: Promise<void> } | undefined> {
     let annotation = this.annotations.get(annotationId);
     if (!annotation) annotation = await this.restoreRetiredForActivation(annotationId, generation);
@@ -698,6 +809,7 @@ export class VerseformController {
         canCancel: false,
         focusTarget: "status",
       });
+      if (revealOnFailure) this.revealInteractionFailure();
       return undefined;
     }
 
@@ -739,6 +851,7 @@ export class VerseformController {
       requestToken,
       generation,
       abort.signal,
+      revealOnFailure,
     );
     this.inFlightPreview = {
       annotationId,
@@ -785,7 +898,7 @@ export class VerseformController {
           : `${insertedPreview?.citationLabel ?? "Scripture"} passage inserted`,
         detail: localProof
           ? "Use Word’s Undo command to restore the reference. The inserted text is local test data, not Scripture."
-          : "The passage, editable citation, and provider attribution were inserted together. Use Word’s Undo command to restore the reference.",
+          : "The passage and editable translation citation were inserted together. Use Word’s Undo command to restore the reference.",
         canInsert: false,
         canCancel: false,
         focusTarget: "status",
@@ -961,6 +1074,7 @@ export class VerseformController {
     requestToken: number,
     generation: number,
     signal: AbortSignal,
+    revealOnFailure: boolean,
   ): Promise<void> {
     try {
       const passage = await this.scripture.getPassage(
@@ -1022,6 +1136,16 @@ export class VerseformController {
         canCancel: false,
         focusTarget: "status",
       });
+      if (revealOnFailure) this.revealInteractionFailure();
+    }
+  }
+
+  private revealInteractionFailure(): void {
+    try {
+      this.onInteractionNeedsAttention();
+    } catch {
+      // A host that cannot show the optional pane must not turn a provider
+      // failure into an unhandled event or change document text.
     }
   }
 

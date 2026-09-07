@@ -1,14 +1,14 @@
 # Verseform for Word
 
-Verseform for Word is a small Microsoft Word add-in for people who write with Scripture. A completed reference becomes interactive after a delimiter; hover previews authorized Digital Bible Society text when Word delivers it, and clicking the marked reference or using `Alt+Down` explicitly replaces that exact occurrence with the passage and an editable citation after a final freshness check.
+Verseform for Word is a small Microsoft Word add-in for people who write with Scripture. Type a reference, leave the cursor in or immediately after it, and choose **Fill Scripture** from Word's Home ribbon; the exact occurrence becomes authorized Digital Bible Society text with a compact editable citation after a final freshness check. The preview/settings pane is optional.
 
-The project seed, Word interaction proof, and authorized DBS walking slice are complete. The add-in detects references locally, creates exact temporary annotations, loads the authorized translation catalog, previews a selected passage only on activation, and replaces only an explicitly activated, observably fresh occurrence with passage, editable citation, and provider attribution. NASB is preferred unless the user has saved another authorized translation.
+The project seed, Word interaction proof, and authorized DBS walking slice are complete. The add-in detects references locally, creates exact temporary annotations, loads the authorized translation catalog, and replaces only an explicitly activated, observably fresh occurrence with passage and editable translation citation. NASB is preferred unless the user has saved another authorized translation. An optional pane provides preview, settings, and the selected translation's complete provider notice.
 
 ## Why one add-in
 
-Office.js task-pane add-ins use a web application plus a manifest and can run in Word on the web and supported desktop clients. We will prove Word on the web first, then validate the same add-in on Word for Windows rather than build a separate plugin. The add-in-only XML manifest is intentional: Microsoft's unified manifest for Word remains preview-only for production add-ins.
+Office.js add-ins use a web application plus a manifest and can run in Word on the web and supported desktop clients. Verseform uses one long SharedRuntime 1.1 runtime so ribbon commands and the optional pane share state and detection continues after the pane closes. We proved Word on the web first and validate the same add-in on Word for Windows rather than build a separate plugin. The add-in-only XML manifest is intentional: Microsoft's unified manifest for Word remains preview-only for production add-ins.
 
-The central interaction targets WordApi 1.7 annotations. Word can underline an affected text range and report click, keyboard, and hover activation. Hover is preview-only and best effort because Word on the web did not reliably deliver it; click and `Alt+Down` are explicit guarded insertion paths. The accessible task-pane Insert control remains an alternative. WordApi 1.8 critique suggestions are intentionally not repurposed as command buttons because Word owns their document replacement. Annotation APIs require Word connected to a Microsoft 365 subscription. VFW-010 closed its feasibility gate with explicit safe refusal for observable stale, unknown, and post-close ambiguous states; WordApi 1.7's narrow non-atomic coauthor timing limitation remains documented.
+The central interaction uses WordApi 1.7 annotations for inline feedback and one explicit **Fill Scripture** command for reliable pane-free insertion. Fill is available on the ribbon and selected-text context menu, targets one reference at or immediately before the cursor, and works without a prior annotation event or open pane. Annotation click and `Alt+Down` remain conveniences where Word delivers them; hover is optional preview-only behavior. The task-pane Insert control remains an accessible alternative. WordApi 1.8 critique suggestions are not repurposed because Word owns their document replacement. Observable stale, unknown, changed, and ambiguous states fail closed; WordApi 1.7's narrow non-atomic coauthor timing limitation remains documented.
 
 ## Trust boundary
 
@@ -29,7 +29,8 @@ Prerequisites: Node.js 22, a Microsoft 365 subscription, and a Word host that su
 ```powershell
 npm install
 npx office-addin-dev-certs install
-npm run dev
+npm run build
+npm run desktop:serve
 ```
 
 Then open Word on the web, choose **Add-ins → Advanced → Upload My Add-in**, and upload `manifest.xml`. The local server must remain running at `https://localhost:3000`.
@@ -44,21 +45,21 @@ Use the same `manifest.xml` and source application in desktop Word. After trusti
 npm run desktop:start
 ```
 
-This invokes Microsoft's pinned desktop sideload helper on demand, starts the HTTPS development server, registers the add-in for Word, and opens a generated test document. The helper is deliberately not a persistent project dependency: its current development-only graph carries known high-severity audit findings and none of it ships in the add-in. Always end the session with:
+This builds the production assets, invokes Microsoft's pinned desktop sideload helper on demand, serves the built assets over local HTTPS, registers the add-in for Word, and opens a generated test document. It deliberately avoids Vite's development client: the production CSP blocks that client's injected styles and live-reload WebSocket. After source changes, rebuild and reload the add-in; do not claim a hot reload. The helper is deliberately not a persistent project dependency: its current development-only graph carries known high-severity audit findings and none of it ships in the add-in. Save and close the test document before ending the session with:
 
 ```powershell
 npm run desktop:stop
 ```
 
-The Windows walking proof uses the same user flow as Word on the web:
+The following is the Windows walking proof. Ribbon Fill and one-step Undo have passed on the installed host; the remaining context-menu and accessibility steps are release gates:
 
-1. Open **Verseform** from Word's Home ribbon or **Add-ins** menu and confirm the task pane reports **Word is ready** and loads authorized translations with NASB preferred.
-2. Type `🙂 John 3:16 ` and confirm only `John 3:16` becomes a temporary annotation after the final space.
-3. Hover the reference and confirm the exact NASB preview and Lockman attribution appear without changing the document.
-4. Click the marked reference; confirm passage, editable citation, and visible attribution replace only that occurrence without a trip to the pane, then use one Word Undo to restore the reference. Repeat with Word's `Alt+Down` path and with the task-pane Insert alternative.
+1. Choose **Enable Verseform** from Word's Home ribbon or **Add-ins** menu. Confirm no task pane is required.
+2. With the pane closed, type `John 3:16` and leave the cursor at its end. Choose **Fill Scripture** and confirm passage plus the compact editable NASB citation replace only that occurrence even without a trailing delimiter.
+3. Use one Word Undo to restore the reference. Repeat by selecting exactly one reference and choosing **Fill Scripture** from Word's text context menu. Confirm a selection touching two references is refused without a document change.
+4. Type `🙂 James 4:17`, press Enter, and confirm the preceding reference becomes annotated at the exact UTF-16 offset. Open **Preview & settings** only as an option, confirm hover can preview when delivered, the full Lockman notice is visible, and closing the pane does not stop later detection or ribbon Fill.
 5. Repeat with duplicate references in one paragraph, clear the local Scripture cache, and confirm a later activation refetches rather than changing prose early.
 6. Change a reference while a preview is pending and confirm Verseform refuses the stale result. Close and reopen the pane and confirm delimiter detection resumes safely.
-7. Repeat keyboard insertion, cancellation, and focus recovery with Windows forced colors and a screen reader before public release.
+7. Repeat ribbon/context-menu insertion, cancellation, and focus recovery with Windows forced colors and a screen reader before public release. Do not claim a custom simultaneous shortcut until Word registers it in the release host.
 
 ## Production package
 
@@ -77,8 +78,12 @@ The owner and DBS must still resolve `D-011`: public HTTPS host and log retentio
 ## Known limits and support
 
 - WordApi 1.7 and a connected Microsoft 365 subscription are required for temporary annotations.
-- Click and `Alt+Down` are the explicit high-throughput insertion paths. Hover preview is best effort because Word on the web did not reliably deliver its documented event; clicking without a prior hover still loads, checks, and inserts once.
-- Detection remains local when DBS is unavailable, but preview and insertion need a connection; no fallback Bible is bundled.
+- On Word for Windows 16.0.20326.20132 / WebView2 152.0.4191.66, the shared runtime and paragraph events survive pane close, but native annotation click/`Alt+Down` events do not arrive while hidden. **Fill Scripture** contains that host boundary and is the required pane-free path; the same annotation conveniences remain available where Word delivers them.
+- Ribbon Fill is one explicit action after typing. It locally resolves the reference at or immediately before the cursor, requests only canonical DBS coordinates, and performs the same guarded single replacement. Hover is passive while hidden and optional preview while the pane is open.
+- No custom add-in shortcut is advertised. Three clean sideload reloads—including Microsoft's current sample key and JSON shape—did not register one in this installed Word host; a future shortcut requires release-host proof rather than silently overriding Office preferences.
+- SharedRuntime 1.1 is required so detection continues while the optional pane is closed. **Enable Verseform** opts the current document into pane-free startup on its next open.
+- Insertions include a compact translation citation, not a repeated full copyright paragraph. The optional pane exposes the selected translation's complete provider notice for any document-level attribution the writer needs.
+- Detection remains local when DBS is unavailable, but preview and insertion need a connection; no fallback Bible is bundled. An explicit insertion failure opens the optional pane so the exact no-change error is visible.
 - WordApi 1.7 cannot make the final check-and-replace atomic against a coauthor edit that lands between Word synchronization boundaries. Every stale state Verseform can observe still fails closed.
 - Verseform collects no diagnostics. Support is direct and voluntary; share the app version, Word host/version, reproduction steps, and non-sensitive screenshots if useful, but never private writing or Word documents.
 

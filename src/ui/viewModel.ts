@@ -22,12 +22,16 @@ export type TaskPaneView = {
     disabled: boolean;
     selectedId: string;
     options: Array<{ id: string; label: string }>;
+    notice: string;
   };
   clearCache: { disabled: boolean };
   focusTarget?: "status";
 };
 
 export function taskPaneView(state: Readonly<VerseformState>): TaskPaneView {
+  const selectedTranslation = state.translations?.find(
+    (translation) => translation.id === state.selectedTranslationId,
+  );
   return {
     statusKind: state.phase === "blocked" ? "blocked" : "ready",
     title: state.title,
@@ -58,6 +62,7 @@ export function taskPaneView(state: Readonly<VerseformState>): TaskPaneView {
         id: translation.id,
         label: `${translation.citationLabel} — ${translation.name}`,
       })),
+      notice: selectedTranslation?.attribution ?? "Translation copyright notice loads with the authorized DBS catalog.",
     },
     clearCache: { disabled: !state.canClearCache },
     focusTarget: state.focusTarget,

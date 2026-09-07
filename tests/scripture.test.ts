@@ -119,9 +119,13 @@ describe("DBS pure contracts", () => {
     expect(() => parseDbsChapter('[{"JN4.16":"wrong chapter"}]', 3, "JHN"))
       .toThrow(/different coordinates/u);
     expect(() => parseDbsChapter("[{},{}]", 3, "JHN")).toThrow(/invalid verse entry/u);
+    expect(parseDbsChapter('[{"HS1.1":"Hosea pilot text."}]', 1, "HOS").get(1))
+      .toBe("Hosea pilot text.");
+    expect(parseDbsChapter('[{"JM4.17":"James pilot text."}]', 4, "JAS").get(17))
+      .toBe("James pilot text.");
   });
 
-  it("builds editable passage, citation, and provider attribution text", () => {
+  it("builds compact editable passage and citation while retaining the provider notice for the pane", () => {
     const preview = previewForPassage({
       reference: john316,
       display: "John 3:16",
@@ -132,9 +136,8 @@ describe("DBS pure contracts", () => {
       text: "For God so loved the world.",
       cached: false,
     });
-    expect(preview.insertText).toBe(
-      "For God so loved the world. (John 3:16, NASB)\nNew American Standard Bible (NASB): © The Lockman Foundation",
-    );
+    expect(preview.insertText).toBe("For God so loved the world. (John 3:16, NASB)");
+    expect(preview.attribution).toBe("New American Standard Bible (NASB): © The Lockman Foundation");
   });
 });
 
@@ -198,6 +201,22 @@ describe("DBS adapter boundary", () => {
 
     await expect(transport.getChapter("../NASB", "JHN", 3)).rejects.toThrow(/invalid/u);
     expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses canonical API book IDs for the two pilot references", async () => {
+    const request = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response("[]", {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }));
+    const transport = new FetchDbsTransport(request, 50);
+
+    await transport.getChapter("ENGNASB", "HOS", 1);
+    await transport.getChapter("ENGNASB", "JAS", 4);
+
+    expect(request.mock.calls.map(([url]) => String(url))).toEqual([
+      `${DBS_ORIGIN}/api/bible-text/ENGNASB/HOS/1`,
+      `${DBS_ORIGIN}/api/bible-text/ENGNASB/JAS/4`,
+    ]);
   });
 
   it("rejects oversized or non-JSON responses before parsing", async () => {

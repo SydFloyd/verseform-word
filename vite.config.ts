@@ -18,6 +18,9 @@ export default defineConfig(async ({ command }) => {
       sourcemap: true,
     },
     server,
+    // Native host proofs run the built assets. Vite's development client injects
+    // inline CSS and opens a WebSocket, both intentionally denied by our CSP.
+    preview: server,
     test: {
       environment: "node",
     },

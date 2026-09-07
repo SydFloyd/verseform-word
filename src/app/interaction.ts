@@ -16,6 +16,20 @@ export type ParagraphSnapshot = {
   paragraphId: string;
   text: string;
   revision: number;
+  /** True only when Word confirms a real paragraph follows this one. */
+  terminalDelimiter?: boolean;
+};
+
+export type SelectionSnapshot = {
+  paragraph: ParagraphSnapshot;
+  selection: { from: number; to: number };
+  /** Present only when Word proves the caret is at the next paragraph start. */
+  previousParagraph?: ParagraphSnapshot;
+};
+
+export type SelectionReferenceTarget = {
+  paragraph: ParagraphSnapshot;
+  candidate: ReferenceCandidate;
 };
 
 export type FakePreview = ScripturePreview;
@@ -78,10 +92,75 @@ export class LocalProofScriptureProvider implements ScriptureProvider {
   public async clearCache(): Promise<void> {}
 }
 
-export function candidatesForParagraph(text: string): ReferenceCandidate[] {
-  return scanReferences(text)
+export function candidatesForParagraph(
+  text: string,
+  options: { terminalDelimiter?: boolean } = {},
+): ReferenceCandidate[] {
+  // Word's Paragraph.text omits the paragraph mark. Add a detection-only
+  // newline when the caller is evaluating a complete Word paragraph so a
+  // reference immediately before that real document delimiter is complete.
+  const detectionText = options.terminalDelimiter ? `${text}\n` : text;
+  return scanReferences(detectionText)
     .filter(isValidReference)
     .filter((candidate) => !isGeneratedCitation(text, candidate));
+}
+
+const CURSOR_TRAILING_DELIMITERS = /^[\s.,;:!?)}\]'"”’]*$/u;
+
+/**
+ * Resolve one deliberate command target without asking Word to send prose to a
+ * provider. A selection must touch exactly one reference. A collapsed caret
+ * targets the containing reference or the nearest completed reference followed
+ * only by delimiters. At the start of a new paragraph, Word's structurally
+ * proven previous paragraph is considered instead.
+ */
+export function referenceTargetForSelection(
+  snapshot: SelectionSnapshot,
+): SelectionReferenceTarget | undefined {
+  const targetIn = (
+    paragraph: ParagraphSnapshot,
+    selection: { from: number; to: number },
+  ): SelectionReferenceTarget | undefined => {
+    // Choosing Fill Scripture is itself a deliberate completion boundary. This
+    // differs from passive detection, which must still wait for a typed Word
+    // delimiter before it creates an annotation. Word can omit a trailing
+    // space from Paragraph.text even though the user just typed one, so the
+    // command treats only the paragraph end as complete.
+    const candidates = candidatesForParagraph(paragraph.text, {
+      terminalDelimiter: true,
+    });
+    if (selection.from !== selection.to) {
+      const intersecting = candidates.filter((candidate) => (
+        selection.from < candidate.to && selection.to > candidate.from
+      ));
+      return intersecting.length === 1
+        ? { paragraph, candidate: intersecting[0]! }
+        : undefined;
+    }
+
+    const caret = selection.from;
+    const containing = candidates.filter((candidate) => (
+      candidate.from <= caret && caret <= candidate.to
+    ));
+    if (containing.length === 1) return { paragraph, candidate: containing[0]! };
+
+    const preceding = candidates
+      .filter((candidate) => candidate.to <= caret)
+      .filter((candidate) => CURSOR_TRAILING_DELIMITERS.test(
+        paragraph.text.slice(candidate.to, caret),
+      ))
+      .sort((left, right) => right.to - left.to);
+    return preceding.length ? { paragraph, candidate: preceding[0]! } : undefined;
+  };
+
+  const current = targetIn(snapshot.paragraph, snapshot.selection);
+  if (current) return current;
+  if (snapshot.selection.from !== 0
+    || snapshot.selection.to !== 0
+    || !snapshot.previousParagraph) return undefined;
+
+  const previous = snapshot.previousParagraph;
+  return targetIn(previous, { from: previous.text.length, to: previous.text.length });
 }
 
 function isGeneratedCitation(text: string, candidate: ReferenceCandidate): boolean {

@@ -30,9 +30,17 @@ export function inspectWordHost(): HostCapability {
     };
   }
 
+  if (!Office.context.requirements.isSetSupported("SharedRuntime", "1.1")) {
+    return {
+      kind: "blocked",
+      title: "Word needs background add-in support",
+      detail: "Verseform requires SharedRuntime 1.1 so detection can continue while its optional pane is closed.",
+    };
+  }
+
   return {
     kind: "ready",
     title: "Word is ready",
-    detail: "This host supports the annotation events required for the first walking slice.",
+    detail: "Verseform can run for this document while its optional preview and settings pane is closed.",
   };
 }

@@ -1,4 +1,4 @@
-import type { ParagraphSnapshot } from "../app/interaction";
+import type { ParagraphSnapshot, SelectionSnapshot } from "../app/interaction";
 import type { AnnotatedReference } from "../core/freshness";
 import type { ReferenceCandidate } from "../core/reference";
 import type { AnnotationRemovalResult, ReplacementResult, WordGateway, WordHostHandlers, WordRuntime } from "./gateway";
@@ -64,6 +64,10 @@ export class OfficeWordGateway implements WordGateway {
       const registrations: EventRegistration[] = [];
       try {
         registrations.push(document.onParagraphChanged.add(async (event) => handlers.onParagraphChanged(event.uniqueLocalIds)));
+        registrations.push(document.onParagraphAdded.add(async (event) => {
+          const precedingIds = await this.precedingParagraphIds(document, event.uniqueLocalIds);
+          if (precedingIds.length) await handlers.onParagraphBoundary(precedingIds);
+        }));
         registrations.push(document.onAnnotationHovered.add(async (event) => handlers.onAnnotationActivated(event.id, "hovered")));
         registrations.push(document.onAnnotationClicked.add(async (event) => handlers.onAnnotationActivated(event.id, "clicked")));
         registrations.push(document.onAnnotationRemoved.add(async (event) => handlers.onAnnotationRemoved(event.ids)));
@@ -91,17 +95,84 @@ export class OfficeWordGateway implements WordGateway {
     try {
       return await Word.run(async (context) => {
         const paragraph = context.document.getParagraphByUniqueLocalId(paragraphId);
+        const nextParagraph = paragraph.getNextOrNullObject();
         paragraph.load("text,uniqueLocalId");
+        nextParagraph.load("uniqueLocalId");
         await context.sync();
         if (paragraph.uniqueLocalId !== paragraphId) return undefined;
         // Word does not expose a monotonically increasing paragraph revision.
         // The kernel stamps events; the complete text is checked again at insert.
-        return { paragraphId, text: paragraph.text, revision: 0 };
+        return {
+          paragraphId,
+          text: paragraph.text,
+          revision: 0,
+          terminalDelimiter: !nextParagraph.isNullObject,
+        };
       });
     } catch (error) {
       if (isMissingOfficeObject(error)) return undefined;
       throw error;
     }
+  }
+
+  public async readSelection(): Promise<SelectionSnapshot | undefined> {
+    return Word.run(async (context) => {
+      const selection = context.document.getSelection();
+      const selectedParagraphs = selection.paragraphs;
+      const paragraph = selectedParagraphs.getFirst();
+      const previous = paragraph.getPreviousOrNullObject();
+      const next = paragraph.getNextOrNullObject();
+      const paragraphStart = paragraph.getRange("Start");
+      const selectionStart = selection.getRange("Start");
+      const selectionEnd = selection.getRange("End");
+      const prefixToStart = paragraphStart.expandTo(selectionStart);
+      const prefixToEnd = paragraphStart.expandTo(selectionEnd);
+
+      selectedParagraphs.load("items");
+      paragraph.load("text,uniqueLocalId");
+      previous.load("text,uniqueLocalId");
+      next.load("uniqueLocalId");
+      prefixToStart.load("text");
+      prefixToEnd.load("text");
+      await context.sync();
+
+      if (selectedParagraphs.items.length !== 1) return undefined;
+      const from = Math.min(prefixToStart.text.length, paragraph.text.length);
+      const to = Math.min(prefixToEnd.text.length, paragraph.text.length);
+      return {
+        paragraph: {
+          paragraphId: paragraph.uniqueLocalId,
+          text: paragraph.text,
+          revision: 0,
+          terminalDelimiter: !next.isNullObject,
+        },
+        selection: { from: Math.min(from, to), to: Math.max(from, to) },
+        previousParagraph: previous.isNullObject ? undefined : {
+          paragraphId: previous.uniqueLocalId,
+          text: previous.text,
+          revision: 0,
+          terminalDelimiter: true,
+        },
+      };
+    });
+  }
+
+  private async precedingParagraphIds(
+    contextAnchor: OfficeExtension.ClientObject,
+    addedParagraphIds: readonly string[],
+  ): Promise<string[]> {
+    return Word.run(contextAnchor, async (context) => {
+      const preceding = addedParagraphIds.map((paragraphId) => {
+        const added = context.document.getParagraphByUniqueLocalId(paragraphId);
+        const previous = added.getPreviousOrNullObject();
+        previous.load("uniqueLocalId");
+        return previous;
+      });
+      await context.sync();
+      return [...new Set(preceding
+        .filter((paragraph) => !paragraph.isNullObject)
+        .map((paragraph) => paragraph.uniqueLocalId))];
+    });
   }
 
   public async annotate(paragraph: ParagraphSnapshot, candidate: ReferenceCandidate): Promise<string | undefined> {

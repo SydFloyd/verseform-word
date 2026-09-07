@@ -14,6 +14,18 @@ if (-not $html.Contains($expectedCsp)) {
   throw "The built task pane must retain the reviewed Content Security Policy."
 }
 
+if ($html.Contains('/@vite/client') -or $html.Contains('/src/main.ts') -or
+    $html -notmatch '<link[^>]+rel="stylesheet"[^>]+href="/assets/[^" ]+\.css"') {
+  throw "Host validation must serve built scripts and an external stylesheet, not Vite's CSP-blocked development client."
+}
+
+$package = Get-Content -LiteralPath (Join-Path $projectRoot "package.json") -Raw | ConvertFrom-Json
+if (-not $package.scripts.'desktop:start'.StartsWith('npm run build && ') -or
+    -not $package.scripts.'desktop:start'.Contains('--dev-server "npm run desktop:serve"') -or
+    $package.scripts.'desktop:serve' -ne 'vite preview --host localhost --port 3000 --strictPort') {
+  throw "Desktop sideload must build and serve the exact production assets."
+}
+
 $localhostHits = Get-ChildItem -LiteralPath $distPath -Recurse -File |
   Select-String -SimpleMatch "https://localhost:3000" -ErrorAction Stop
 if ($localhostHits) {
