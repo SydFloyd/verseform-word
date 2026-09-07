@@ -18,7 +18,7 @@ Verseform for Word helps a person remain inside Microsoft Word while inserting a
 
 - The initial language is English. Full names, approved abbreviations, conservative fuzzy book-name matching, single verses, and same-chapter ranges follow Verseform's proven behavior.
 - Chapter and verse bounds are strict. Only book names may be fuzzy.
-- One request may contain a single verse or a same-chapter range of at most 25 verses. Longer ranges are refused locally with an explanation and never reach DBS; the writer may split them into smaller references.
+- One request may contain a single verse or any valid same-chapter range, including all 176 verses of Psalm 119. Chapter and verse bounds provide the user-facing limit; the provider independently refuses any programmatic request above 176 verses before cache or network access.
 - Whitespace, punctuation, user-created paragraph breaks, and common closing characters count as delimiters. Because Word omits its paragraph mark from `Paragraph.text`, the Word boundary must prove the real break rather than treating every current paragraph end as a delimiter. An unfinished reference is not annotated.
 - URLs, emails, existing generated citations, and representative prose false positives are excluded.
 - Detection never contacts Word services beyond reading the changed paragraph and never contacts DBS.
@@ -52,6 +52,7 @@ Verseform for Word helps a person remain inside Microsoft Word while inserting a
 - The task pane must declare and paint a matching light or dark canvas/text surface, and use paired system colors when Windows forced-colors mode is active; it must never rely on the host canvas for readable text.
 - DBS is credited clearly and no endorsement by Microsoft or DBS is implied without written approval.
 - Public distribution must use a production-supported manifest and pass Microsoft validation. The current unified Word manifest is not a production dependency while Microsoft labels it preview.
+- Public distribution uses Microsoft Marketplace through the DBS Partner Center publisher. Because the add-in-only XML manifest admits Word on the web, Word for Windows, and Word for Mac, the hosted release must pass the same core walk and accessibility expectations on all three before submission. Microsoft 365 Integrated Apps is permitted only as a controlled tenant pilot, not as the public release.
 
 ## Initial exclusions
 

@@ -2022,7 +2022,7 @@ describe("task-pane DOM harness", () => {
     expect(source).toContain('class="help-panel"');
     expect(source).toContain('id="help-heading"');
     expect(source).toContain("How to use Verseform");
-    expect(source).toContain("up to <strong>25 verses</strong> per reference");
+    expect(source).toContain("<strong>176 verses of Psalm 119</strong>");
     expect(styles).toMatch(/color-scheme:\s*light dark/u);
     expect(styles).toContain(".help-panel");
     expect(styles).toContain("@media (prefers-color-scheme: dark)");

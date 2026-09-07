@@ -174,7 +174,9 @@ export class DbsScriptureProvider implements ScriptureProvider {
     if (!Number.isSafeInteger(requestedVerses)
       || requestedVerses < 1
       || requestedVerses > MAX_VERSES_PER_PASSAGE) {
-      throw new Error(`Verseform can show up to ${MAX_VERSES_PER_PASSAGE} verses at a time.`);
+      throw new Error(
+        `Verseform can show one chapter at a time, up to ${MAX_VERSES_PER_PASSAGE} verses.`,
+      );
     }
     const translation = this.catalog?.find((item) => item.id === translationId);
     if (!translation) throw new Error("That translation is not in the authorized DBS catalog.");

@@ -52,6 +52,13 @@ const john3Body = JSON.stringify([{
   "JN3.17": "For God did not send the Son into the world to judge the world.",
 }]);
 
+const psalm119Body = JSON.stringify([Object.fromEntries(
+  Array.from({ length: 176 }, (_, index) => [
+    `PS119.${index + 1}`,
+    `Psalm 119 test verse ${index + 1}.`,
+  ]),
+)]);
+
 const john316 = {
   bookId: "JHN",
   bookName: "John",
@@ -69,13 +76,14 @@ class MemoryStorage {
 class RecordedTransport implements DbsTransport {
   public catalogCalls = 0;
   public chapterCalls: Array<[string, string, number]> = [];
+  public constructor(private readonly chapterBody = john3Body) {}
   public async getCatalog(): Promise<string> {
     this.catalogCalls += 1;
     return catalogBody;
   }
   public async getChapter(translationId: string, bookId: string, chapter: number): Promise<string> {
     this.chapterCalls.push([translationId, bookId, chapter]);
-    return john3Body;
+    return this.chapterBody;
   }
 }
 
@@ -168,7 +176,25 @@ describe("DBS adapter boundary", () => {
     expect(JSON.stringify(storage.values)).not.toContain("surrounding document prose");
   });
 
-  it("refuses an over-limit range before any chapter request", async () => {
+  it("accepts all of Psalm 119 and refuses a larger programmatic request before transport", async () => {
+    const fullChapterTransport = new RecordedTransport(psalm119Body);
+    const fullChapterProvider = new DbsScriptureProvider(
+      fullChapterTransport,
+      new BrowserScriptureCache(new MemoryStorage(), () => 1_000),
+    );
+    await fullChapterProvider.listTranslations();
+    await expect(fullChapterProvider.getPassage({
+      bookId: "PSA",
+      bookName: "Psalms",
+      chapter: 119,
+      verseStart: 1,
+      verseEnd: 176,
+    }, "ENGNASB")).resolves.toMatchObject({
+      display: "Psalms 119:1-176",
+      text: expect.stringContaining("Psalm 119 test verse 176."),
+    });
+    expect(fullChapterTransport.chapterCalls).toEqual([["ENGNASB", "PSA", 119]]);
+
     const transport = new RecordedTransport();
     const provider = new DbsScriptureProvider(
       transport,
@@ -177,9 +203,9 @@ describe("DBS adapter boundary", () => {
     await provider.listTranslations();
 
     await expect(provider.getPassage(
-      { ...john316, verseStart: 1, verseEnd: 26 },
+      { ...john316, verseStart: 1, verseEnd: 177 },
       "ENGNASB",
-    )).rejects.toThrow("up to 25 verses");
+    )).rejects.toThrow("one chapter at a time, up to 176 verses");
     expect(transport.chapterCalls).toEqual([]);
   });
 

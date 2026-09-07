@@ -15,6 +15,7 @@
     "test": "vitest run",
     "validate:manifest": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/validate-manifest.ps1",
     "validate:release": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/validate-release.ps1",
+    "validate:marketplace": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/validate-marketplace.ps1",
     "check": "npm run typecheck && npm run test && npm run build && npm run validate:manifest && npm run validate:release"
   },
   "dependencies": {

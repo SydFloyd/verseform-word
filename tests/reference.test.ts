@@ -201,17 +201,17 @@ describe("local reference detection", () => {
     expect(scanReferences("We finished chapter 3:16 yesterday.")).toEqual([]);
   });
 
-  it("limits one passage to 25 verses", () => {
-    expect(MAX_VERSES_PER_PASSAGE).toBe(25);
-    expect(scanReferences("Psalm 119:1-25 ")[0]).toMatchObject({
+  it("accepts a complete chapter through all 176 verses of Psalm 119", () => {
+    expect(MAX_VERSES_PER_PASSAGE).toBe(176);
+    expect(scanReferences("Psalm 119:1-176 ")[0]).toMatchObject({
       kind: "valid",
-      reference: { verseStart: 1, verseEnd: 25 },
+      reference: { verseStart: 1, verseEnd: 176 },
     });
-    expect(scanReferences("Psalm 119:1-26 ")[0]).toMatchObject({
+    expect(scanReferences("Psalm 119:1-177 ")[0]).toMatchObject({
       kind: "invalid",
       issue: {
-        code: "range_too_long",
-        message: "Verseform can show up to 25 verses at a time; shorten this range.",
+        code: "range_end_out_of_range",
+        message: "Psalms 119 ends at verse 176; verse 177 does not exist.",
       },
     });
   });

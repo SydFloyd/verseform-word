@@ -8,8 +8,8 @@ export type NormalizedReference = {
   verseEnd?: number;
 };
 
-/** Keep one preview and one Word replacement readable, bounded, and undoable. */
-export const MAX_VERSES_PER_PASSAGE = 25;
+/** Largest chapter in the 66-book canon: Psalm 119. */
+export const MAX_VERSES_PER_PASSAGE = 176;
 
 export function passageVerseCount(
   reference: Pick<NormalizedReference, "verseStart" | "verseEnd">,
@@ -36,8 +36,7 @@ export type ReferenceIssueCode =
   | "verse_out_of_range"
   | "verse_unavailable"
   | "range_reversed"
-  | "range_end_out_of_range"
-  | "range_too_long";
+  | "range_end_out_of_range";
 
 export type InvalidReferenceCandidate = CandidateBase & {
   kind: "invalid";
@@ -159,12 +158,6 @@ function classify(
     return invalid(
       "range_end_out_of_range",
       `${book.name} ${chapter} ends at verse ${verseCount}; verse ${verseEnd} does not exist.`,
-    );
-  }
-  if (passageVerseCount({ verseStart, verseEnd }) > MAX_VERSES_PER_PASSAGE) {
-    return invalid(
-      "range_too_long",
-      `Verseform can show up to ${MAX_VERSES_PER_PASSAGE} verses at a time; shorten this range.`,
     );
   }
   const unavailable = book.unavailableVerses?.[chapter] ?? [];

@@ -24,7 +24,7 @@ if ($null -eq $root -or $root.LocalName -ne "OfficeApp") {
 
 $requiredText = @{
   "Id" = "82d488fc-c5a7-4aa5-8133-d56c32ef9a69"
-  "Version" = "1.0.0.6"
+  "Version" = "1.0.0.7"
   "Permissions" = "ReadWriteDocument"
 }
 
