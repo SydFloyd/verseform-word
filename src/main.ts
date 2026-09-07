@@ -12,6 +12,17 @@ const taskPane = mountTaskPane();
 let controller: VerseformController | undefined;
 let startup: Promise<void> | undefined;
 
+async function retireLegacyStartupPreference(): Promise<void> {
+  try {
+    if (await Office.addin.getStartupBehavior() === Office.StartupBehavior.load) {
+      await Office.addin.setStartupBehavior(Office.StartupBehavior.none);
+    }
+  } catch {
+    // Earlier builds exposed a load-on-reopen command. Retiring that preference
+    // is migration cleanup, not a prerequisite for Fill or task-pane startup.
+  }
+}
+
 async function startInsideWord(): Promise<void> {
   const capability = inspectWordHost();
   if (capability.kind === "blocked") {
@@ -53,25 +64,11 @@ async function startInsideWord(): Promise<void> {
 }
 
 function ensureStarted(): Promise<void> {
-  startup ??= Office.onReady().then(async () => startInsideWord());
+  startup ??= Office.onReady().then(async () => {
+    await retireLegacyStartupPreference();
+    await startInsideWord();
+  });
   return startup;
-}
-
-function enableVerseform(event?: Office.AddinCommands.Event): void {
-  // This is a long shared runtime, so completing the queued ribbon command
-  // does not tear it down. Release Word's command queue immediately; local
-  // event binding, the startup preference, and DBS catalog loading continue
-  // in the one document-scoped runtime without making repeated clicks useful.
-  event?.completed();
-  void ensureStarted()
-    .then(async () => {
-      controller?.setPreviewOnHover(false);
-      await Office.addin.setStartupBehavior(Office.StartupBehavior.load);
-    })
-    .catch(() => {
-      const capability = officeReadinessFailure();
-      taskPane.renderHostStatus("blocked", capability.title, capability.detail);
-    });
 }
 
 function fillScripture(event?: Office.AddinCommands.Event): void {
@@ -95,7 +92,6 @@ if (typeof Office === "undefined") {
     "Open this task pane inside Word to test host capabilities.",
   );
 } else {
-  Office.actions.associate("enableVerseform", enableVerseform);
   Office.actions.associate("fillScripture", fillScripture);
   void ensureStarted().catch(() => {
     const capability = officeReadinessFailure();

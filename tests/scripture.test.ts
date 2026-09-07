@@ -168,6 +168,21 @@ describe("DBS adapter boundary", () => {
     expect(JSON.stringify(storage.values)).not.toContain("surrounding document prose");
   });
 
+  it("refuses an over-limit range before any chapter request", async () => {
+    const transport = new RecordedTransport();
+    const provider = new DbsScriptureProvider(
+      transport,
+      new BrowserScriptureCache(new MemoryStorage(), () => 1_000),
+    );
+    await provider.listTranslations();
+
+    await expect(provider.getPassage(
+      { ...john316, verseStart: 1, verseEnd: 26 },
+      "ENGNASB",
+    )).rejects.toThrow("up to 25 verses");
+    expect(transport.chapterCalls).toEqual([]);
+  });
+
   it("does not persist a live response until its schema is valid", async () => {
     const storage = new MemoryStorage();
     const cache = new BrowserScriptureCache(storage, () => 1_000);

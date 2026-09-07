@@ -1983,16 +1983,13 @@ class FakeElement {
 }
 
 describe("task-pane DOM harness", () => {
-  it("releases Word's ribbon command and never tears down for pane pagehide", () => {
+  it("keeps startup lazy and never tears down for pane pagehide", () => {
     const source = readFileSync("src/main.ts", "utf8");
-    const start = source.indexOf("function enableVerseform");
-    const end = source.indexOf("\n}\n\nif (typeof Office", start);
-    const enableFunction = source.slice(start, end);
-    expect(start).toBeGreaterThanOrEqual(0);
-    expect(end).toBeGreaterThan(start);
-    expect(enableFunction.indexOf("event?.completed()")).toBeLessThan(
-      enableFunction.indexOf("ensureStarted()"),
-    );
+    expect(source).not.toContain("function enableVerseform");
+    expect(source).not.toContain('Office.actions.associate("enableVerseform"');
+    expect(source).not.toContain("setStartupBehavior(Office.StartupBehavior.load)");
+    expect(source).toContain("Office.addin.getStartupBehavior()");
+    expect(source).toContain("Office.addin.setStartupBehavior(Office.StartupBehavior.none)");
     expect(source).not.toContain('addEventListener("pagehide"');
     expect(source).not.toMatch(/pagehide[\s\S]{0,200}controller\?\.stop/u);
   });
@@ -2022,7 +2019,12 @@ describe("task-pane DOM harness", () => {
     expect(source).toContain('id="translation-notice"');
     expect(source).toContain('id="clear-cache-button"');
     expect(source).toContain('id="cancel-button"');
+    expect(source).toContain('class="help-panel"');
+    expect(source).toContain('id="help-heading"');
+    expect(source).toContain("How to use Verseform");
+    expect(source).toContain("up to <strong>25 verses</strong> per reference");
     expect(styles).toMatch(/color-scheme:\s*light dark/u);
+    expect(styles).toContain(".help-panel");
     expect(styles).toContain("@media (prefers-color-scheme: dark)");
     expect(styles).toContain("@media (forced-colors: active)");
     expect(styles).toMatch(/--canvas:\s*Canvas/u);

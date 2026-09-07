@@ -1,4 +1,8 @@
-import type { NormalizedReference } from "../core/reference";
+import {
+  MAX_VERSES_PER_PASSAGE,
+  passageVerseCount,
+  type NormalizedReference,
+} from "../core/reference";
 import {
   DBS_CATALOG_LIMIT_BYTES,
   DBS_CHAPTER_LIMIT_BYTES,
@@ -166,6 +170,12 @@ export class DbsScriptureProvider implements ScriptureProvider {
     signal?: AbortSignal,
   ): Promise<Passage> {
     if (!isTranslationId(translationId)) throw new Error("That translation identifier is invalid.");
+    const requestedVerses = passageVerseCount(reference);
+    if (!Number.isSafeInteger(requestedVerses)
+      || requestedVerses < 1
+      || requestedVerses > MAX_VERSES_PER_PASSAGE) {
+      throw new Error(`Verseform can show up to ${MAX_VERSES_PER_PASSAGE} verses at a time.`);
+    }
     const translation = this.catalog?.find((item) => item.id === translationId);
     if (!translation) throw new Error("That translation is not in the authorized DBS catalog.");
     const cacheKey = `${translationId}/${reference.bookId}/${reference.chapter}`;

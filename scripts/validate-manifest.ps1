@@ -24,7 +24,7 @@ if ($null -eq $root -or $root.LocalName -ne "OfficeApp") {
 
 $requiredText = @{
   "Id" = "82d488fc-c5a7-4aa5-8133-d56c32ef9a69"
-  "Version" = "1.0.0.5"
+  "Version" = "1.0.0.6"
   "Permissions" = "ReadWriteDocument"
 }
 
@@ -103,9 +103,9 @@ if ($null -eq $functionFile -or $functionFile.GetAttribute("resid") -ne "Taskpan
   throw "manifest.xml commands must share the task-pane runtime."
 }
 
-$enableAction = $root.SelectSingleNode(".//*[local-name()='Control' and @id='Verseform.Enable']/*[local-name()='Action' and @*[local-name()='type']='ExecuteFunction']")
-if ($null -eq $enableAction -or $enableAction.SelectSingleNode("./*[local-name()='FunctionName']").InnerText -ne "enableVerseform") {
-  throw "manifest.xml must expose the background Enable Verseform command."
+if ($null -ne $root.SelectSingleNode(".//*[local-name()='Control' and @id='Verseform.Enable']") -or
+    $null -ne $root.SelectSingleNode(".//*[local-name()='FunctionName' and text()='enableVerseform']")) {
+  throw "The redundant Enable Verseform command must not return."
 }
 
 $fillActions = @($root.SelectNodes(".//*[local-name()='Control' and (@id='Verseform.Fill' or @id='Verseform.FillContext')]/*[local-name()='Action' and @*[local-name()='type']='ExecuteFunction']"))

@@ -5,7 +5,12 @@ import { describe, expect, it, vi } from "vitest";
 import { candidatesForParagraph } from "../src/app/interaction";
 import { STANDARD_CANON } from "../src/core/canon";
 import { insertedPassageText, isReferenceFresh, type AnnotatedReference } from "../src/core/freshness";
-import { isValidReference, scanReferences, type ReferenceIssueCode } from "../src/core/reference";
+import {
+  MAX_VERSES_PER_PASSAGE,
+  isValidReference,
+  scanReferences,
+  type ReferenceIssueCode,
+} from "../src/core/reference";
 
 type ExpectedReference = {
   sourceText: string;
@@ -194,6 +199,21 @@ describe("local reference detection", () => {
     });
     expect(scanReferences("Visit https://example.test/John 3:16 today.")).toEqual([]);
     expect(scanReferences("We finished chapter 3:16 yesterday.")).toEqual([]);
+  });
+
+  it("limits one passage to 25 verses", () => {
+    expect(MAX_VERSES_PER_PASSAGE).toBe(25);
+    expect(scanReferences("Psalm 119:1-25 ")[0]).toMatchObject({
+      kind: "valid",
+      reference: { verseStart: 1, verseEnd: 25 },
+    });
+    expect(scanReferences("Psalm 119:1-26 ")[0]).toMatchObject({
+      kind: "invalid",
+      issue: {
+        code: "range_too_long",
+        message: "Verseform can show up to 25 verses at a time; shorten this range.",
+      },
+    });
   });
 });
 describe("guarded insertion", () => {

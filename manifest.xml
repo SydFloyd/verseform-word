@@ -5,7 +5,7 @@
   xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
   xsi:type="TaskPaneApp">
   <Id>82d488fc-c5a7-4aa5-8133-d56c32ef9a69</Id>
-  <Version>1.0.0.5</Version>
+  <Version>1.0.0.6</Version>
   <ProviderName>Verseform Project</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Verseform for Word" />
@@ -75,21 +75,6 @@
                     <FunctionName>fillScripture</FunctionName>
                   </Action>
                 </Control>
-                <Control xsi:type="Button" id="Verseform.Enable">
-                  <Label resid="Verseform.EnableLabel" />
-                  <Supertip>
-                    <Title resid="Verseform.EnableLabel" />
-                    <Description resid="Verseform.EnableDescription" />
-                  </Supertip>
-                  <Icon>
-                    <bt:Image size="16" resid="Icon.16" />
-                    <bt:Image size="32" resid="Icon.32" />
-                    <bt:Image size="80" resid="Icon.80" />
-                  </Icon>
-                  <Action xsi:type="ExecuteFunction">
-                    <FunctionName>enableVerseform</FunctionName>
-                  </Action>
-                </Control>
                 <Control xsi:type="Button" id="Verseform.ShowTaskpane">
                   <Label resid="Verseform.PaneLabel" />
                   <Supertip>
@@ -144,16 +129,14 @@
       <bt:ShortStrings>
         <bt:String id="GetStarted.Title" DefaultValue="Verseform is ready" />
         <bt:String id="Verseform.GroupLabel" DefaultValue="Scripture" />
-        <bt:String id="Verseform.EnableLabel" DefaultValue="Enable Verseform" />
         <bt:String id="Verseform.FillLabel" DefaultValue="Fill Scripture" />
-        <bt:String id="Verseform.PaneLabel" DefaultValue="Preview &amp; settings" />
+        <bt:String id="Verseform.PaneLabel" DefaultValue="Preview &amp; Settings" />
         <bt:String id="Verseform.AnnotationBrand" DefaultValue="Verseform" />
         <bt:String id="Verseform.AnnotationTitle" DefaultValue="Scripture reference" />
         <bt:String id="Verseform.AnnotationSubtitle" DefaultValue="Preview and insert authorized Bible text" />
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="GetStarted.Description" DefaultValue="Enable Verseform to detect and insert scripture while you write." />
-        <bt:String id="Verseform.EnableDescription" DefaultValue="Start background scripture detection for this document without opening a pane." />
+        <bt:String id="GetStarted.Description" DefaultValue="Type a reference, then choose Fill Scripture to insert the passage." />
         <bt:String id="Verseform.FillDescription" DefaultValue="Replace the completed reference at the cursor with authorized Scripture without opening the preview pane." />
         <bt:String id="Verseform.PaneDescription" DefaultValue="Open optional preview, translation, copyright, privacy, and cache controls." />
       </bt:LongStrings>

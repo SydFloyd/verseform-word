@@ -53,11 +53,11 @@ npm run desktop:stop
 
 The following is the Windows walking proof. Ribbon Fill and one-step Undo have passed on the installed host; the remaining context-menu and accessibility steps are release gates:
 
-1. Choose **Enable Verseform** from Word's Home ribbon or **Add-ins** menu. Confirm no task pane is required.
-2. With the pane closed, type `John 3:16` and leave the cursor at its end. Choose **Fill Scripture** and confirm passage plus the compact editable NASB citation replace only that occurrence even without a trailing delimiter.
-3. Use one Word Undo to restore the reference. Repeat by selecting exactly one reference and choosing **Fill Scripture** from Word's text context menu. Confirm a selection touching two references is refused without a document change.
-4. Type `🙂 James 4:17`, press Enter, and confirm the preceding reference becomes annotated at the exact UTF-16 offset. Open **Preview & settings** only as an option, confirm hover can preview when delivered, the full Lockman notice is visible, and closing the pane does not stop later detection or ribbon Fill.
-5. Repeat with duplicate references in one paragraph, clear the local Scripture cache, and confirm a later activation refetches rather than changing prose early.
+1. With the pane closed, type `John 3:16` and leave the cursor at its end. Choose **Fill Scripture** and confirm passage plus the compact editable NASB citation replace only that occurrence even without a trailing delimiter or separate enable step.
+2. Use one Word Undo to restore the reference. Repeat by selecting exactly one reference and choosing **Fill Scripture** from Word's text context menu. Confirm a selection touching two references is refused without a document change.
+3. Open **Preview & Settings** only as an option. Confirm its usage instructions and 25-verse limit are clear, the full Lockman notice is visible, and closing the pane does not stop an already active runtime or later ribbon Fill.
+4. Type `🙂 James 4:17`, press Enter, and confirm the preceding reference becomes annotated at the exact UTF-16 offset. Confirm hover can preview when Word delivers it while the optional pane is open.
+5. Confirm `Psalm 119:1-25` is accepted and `Psalm 119:1-26` is refused locally without a DBS request or document change. Repeat with duplicate references, clear the local Scripture cache, and confirm a later activation refetches rather than changing prose early.
 6. Change a reference while a preview is pending and confirm Verseform refuses the stale result. Close and reopen the pane and confirm delimiter detection resumes safely.
 7. Repeat ribbon/context-menu insertion, cancellation, and focus recovery with Windows forced colors and a screen reader before public release. Do not claim a custom simultaneous shortcut until Word registers it in the release host.
 
@@ -81,7 +81,8 @@ The owner and DBS must still resolve `D-011`: public HTTPS host and log retentio
 - On Word for Windows 16.0.20326.20132 / WebView2 152.0.4191.66, the shared runtime and paragraph events survive pane close, but native annotation click/`Alt+Down` events do not arrive while hidden. **Fill Scripture** contains that host boundary and is the required pane-free path; the same annotation conveniences remain available where Word delivers them.
 - Ribbon Fill is one explicit action after typing. It locally resolves the reference at or immediately before the cursor, requests only canonical DBS coordinates, and performs the same guarded single replacement. Hover is passive while hidden and optional preview while the pane is open.
 - No custom add-in shortcut is advertised. Three clean sideload reloads—including Microsoft's current sample key and JSON shape—did not register one in this installed Word host; a future shortcut requires release-host proof rather than silently overriding Office preferences.
-- SharedRuntime 1.1 is required so detection continues while the optional pane is closed. **Enable Verseform** opts the current document into pane-free startup on its next open.
+- SharedRuntime 1.1 lets Fill and Preview & Settings use one guarded runtime. Either action starts it when needed; there is no separate Enable command, toggle, or load-on-reopen preference.
+- One reference may contain at most 25 verses within one chapter. Split a longer passage into smaller ranges.
 - Insertions include a compact translation citation, not a repeated full copyright paragraph. The optional pane exposes the selected translation's complete provider notice for any document-level attribution the writer needs.
 - Detection remains local when DBS is unavailable, but preview and insertion need a connection; no fallback Bible is bundled. An explicit insertion failure opens the optional pane so the exact no-change error is visible.
 - WordApi 1.7 cannot make the final check-and-replace atomic against a coauthor edit that lands between Word synchronization boundaries. Every stale state Verseform can observe still fails closed.
