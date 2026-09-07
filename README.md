@@ -80,7 +80,7 @@ The researched Partner Center submission path, draft listing copy, certification
 
 ### Friend pilot
 
-The owner-approved pilot origin is `https://verseform-word.kmproto.com`. Vercel builds the reviewed `dist` output and serves a version-matched production manifest at `/verseform-for-word.xml`; `/install` gives a nontechnical Word-on-the-web user the exact upload steps and persistence boundary. The checked-in pilot manifest deliberately retains **Verseform Project** as its provider until DBS supplies and authorizes the final Partner Center publisher identity.
+The owner-approved pilot is live at [`https://verseform-word.kmproto.com/install`](https://verseform-word.kmproto.com/install). Vercel serves the reviewed `dist` output and the version-matched production manifest at [`/verseform-for-word.xml`](https://verseform-word.kmproto.com/verseform-for-word.xml); the install page gives a nontechnical Word-on-the-web user the exact upload steps and persistence boundary. The checked-in pilot manifest deliberately retains **Verseform Project** as its provider until DBS supplies and authorizes the final Partner Center publisher identity.
 
 Manual Word-on-the-web sideloading is browser-profile-local test distribution. It survives ordinary document and Word reopenings in that profile, but clearing browser data or switching browsers requires another manifest upload, and it does not install the add-in into Word Desktop. Once registered, **Fill Scripture** starts the shared runtime without opening or retaining the optional pane. For durable cross-host organizational use, deploy the manifest through Microsoft 365 Integrated Apps; for ordinary public installation and automatic manifest updates, complete Marketplace publication.
 

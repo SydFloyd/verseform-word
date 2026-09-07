@@ -8,7 +8,9 @@ Publish **Verseform for Word** as a free **Office Add-in** through Partner Cente
 
 For a DBS-only or invited-user pilot before certification, use **Microsoft 365 admin center → Settings → Integrated apps → Add-ins → Deploy Add-in** and upload the production manifest to selected users or groups. Microsoft recommends Integrated Apps for organization-controlled deployment, but it is tenant distribution—not a public substitute for Marketplace. Allow up to 24 hours for a centrally deployed add-in to appear.
 
-An owner-approved friend pilot is prepared at `https://verseform-word.kmproto.com/install`. Its downloadable manifest uses the same public HTTPS application origin and retains **Verseform Project** as the temporary provider name. Manual upload in Word on the web persists only in that browser profile; clearing its data or changing browsers requires another upload, and it does not register the add-in in Word Desktop. This is useful field testing, not production distribution or a DBS publisher claim.
+An owner-approved friend pilot is live at [`https://verseform-word.kmproto.com/install`](https://verseform-word.kmproto.com/install). Its downloadable manifest uses the same public HTTPS application origin and retains **Verseform Project** as the temporary provider name. Manual upload in Word on the web persists only in that browser profile; clearing its data or changing browsers requires another upload, and it does not register the add-in in Word Desktop. This is useful field testing, not production distribution or a DBS publisher claim.
+
+The current Vercel production deployment and custom-domain certificate are healthy, but Vercel could not connect the GitHub repository during project creation. Until the owner grants the Vercel GitHub app access to `SydFloyd/verseform-word`, future code pushes require an explicit verified CLI deployment; do not assume that pushing `main` updates the live pilot.
 
 Do not use a SharePoint app catalog as the primary handoff. Microsoft recommends Integrated Apps for cloud tenants, SharePoint catalogs do not support Mac, and neither route makes the add-in publicly discoverable.
 
