@@ -53,6 +53,7 @@ Verseform for Word helps a person remain inside Microsoft Word while inserting a
 - DBS is credited clearly and no endorsement by Microsoft or DBS is implied without written approval.
 - Public distribution must use a production-supported manifest and pass Microsoft validation. The current unified Word manifest is not a production dependency while Microsoft labels it preview.
 - Public distribution uses Microsoft Marketplace through the DBS Partner Center publisher. Because the add-in-only XML manifest admits Word on the web, Word for Windows, and Word for Mac, the hosted release must pass the same core walk and accessibility expectations on all three before submission. Microsoft 365 Integrated Apps is permitted only as a controlled tenant pilot, not as the public release.
+- The owner-approved friend pilot is served from `https://verseform-word.kmproto.com` with a directly downloadable, version-matched manifest and an accessible installation page. That page must state that manual Word-web registration is local to one browser profile, may be lost with browser data, does not install into Word Desktop, and never requires the optional pane to remain open.
 
 ## Initial exclusions
 

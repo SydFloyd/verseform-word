@@ -1,0 +1,166 @@
+:root {
+  color-scheme: light dark;
+  font-family: Aptos, "Segoe UI", system-ui, sans-serif;
+  color: #202124;
+  background: #f3f2ef;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 40px 20px;
+}
+
+main {
+  width: min(720px, 100%);
+  margin: 0 auto;
+  padding: 40px;
+  background: #ffffff;
+  border: 1px solid #d8d6d1;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+h1,
+h2,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  margin-bottom: 0;
+  font-size: clamp(1.7rem, 4vw, 2.35rem);
+  line-height: 1.1;
+}
+
+h2 {
+  margin-bottom: 12px;
+  font-size: 1.08rem;
+}
+
+.eyebrow {
+  margin-bottom: 5px;
+  color: #605e5c;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.lead {
+  margin: 28px 0 22px;
+  font-size: 1.08rem;
+  line-height: 1.6;
+}
+
+.download {
+  display: inline-block;
+  padding: 11px 16px;
+  color: #ffffff;
+  background: #385723;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.download:hover,
+.download:focus-visible {
+  background: #294419;
+  outline: 3px solid #a8c792;
+  outline-offset: 2px;
+}
+
+section,
+aside,
+footer {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid #dedbd5;
+}
+
+ol {
+  margin: 0;
+  padding-left: 1.4rem;
+}
+
+li,
+aside p,
+footer p {
+  line-height: 1.55;
+}
+
+li + li {
+  margin-top: 9px;
+}
+
+a {
+  color: #385723;
+}
+
+@media (max-width: 560px) {
+  body {
+    padding: 0;
+  }
+
+  main {
+    padding: 28px 20px;
+    border: 0;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color: #f5f4f2;
+    background: #1f211d;
+  }
+
+  main {
+    background: #282b25;
+    border-color: #55584e;
+  }
+
+  .eyebrow {
+    color: #c9c7c1;
+  }
+
+  section,
+  aside,
+  footer {
+    border-color: #55584e;
+  }
+
+  a {
+    color: #b8db9f;
+  }
+
+  .download {
+    color: #17200f;
+    background: #b8db9f;
+  }
+
+  .download:hover,
+  .download:focus-visible {
+    background: #d0e9be;
+  }
+}
+
+@media (forced-colors: active) {
+  main,
+  section,
+  aside,
+  footer {
+    border-color: CanvasText;
+  }
+
+  .download {
+    color: ButtonText;
+    background: ButtonFace;
+    border: 1px solid ButtonText;
+  }
+}

@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0" xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="TaskPaneApp">
+  <Id>82d488fc-c5a7-4aa5-8133-d56c32ef9a69</Id>
+  <Version>1.0.0.7</Version>
+  <ProviderName>Verseform Project</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName DefaultValue="Verseform for Word" />
+  <Description DefaultValue="Detect scripture references and insert authorized Bible text while writing in Word." />
+  <IconUrl DefaultValue="https://verseform-word.kmproto.com/assets/icon-32.png" />
+  <HighResolutionIconUrl DefaultValue="https://verseform-word.kmproto.com/assets/icon-64.png" />
+  <SupportUrl DefaultValue="https://github.com/SydFloyd/verseform-word" />
+  <AppDomains>
+    <AppDomain>https://dbs.org</AppDomain>
+    <AppDomain>https://arc.dbs.org</AppDomain>
+  </AppDomains>
+  <Hosts>
+    <Host Name="Document" />
+  </Hosts>
+  <Requirements>
+    <Sets>
+      <Set Name="WordApi" MinVersion="1.7" />
+      <Set Name="SharedRuntime" MinVersion="1.1" />
+    </Sets>
+  </Requirements>
+  <DefaultSettings>
+    <SourceLocation DefaultValue="https://verseform-word.kmproto.com/index.html" />
+  </DefaultSettings>
+  <Permissions>ReadWriteDocument</Permissions>
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <Requirements>
+      <bt:Sets>
+        <bt:Set Name="WordApi" MinVersion="1.7" />
+        <bt:Set Name="SharedRuntime" MinVersion="1.1" />
+      </bt:Sets>
+    </Requirements>
+    <Hosts>
+      <Host xsi:type="Document">
+        <Runtimes>
+          <Runtime resid="Taskpane.Url" lifetime="long" />
+        </Runtimes>
+        <DesktopFormFactor>
+          <GetStarted>
+            <Title resid="GetStarted.Title" />
+            <Description resid="GetStarted.Description" />
+            <LearnMoreUrl resid="GetStarted.LearnMoreUrl" />
+          </GetStarted>
+          <FunctionFile resid="Taskpane.Url" />
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <OfficeTab id="TabHome">
+              <Group id="Verseform.Group">
+                <Label resid="Verseform.GroupLabel" />
+                <Icon>
+                  <bt:Image size="16" resid="Icon.16" />
+                  <bt:Image size="32" resid="Icon.32" />
+                  <bt:Image size="80" resid="Icon.80" />
+                </Icon>
+                <Control xsi:type="Button" id="Verseform.Fill">
+                  <Label resid="Verseform.FillLabel" />
+                  <Supertip>
+                    <Title resid="Verseform.FillLabel" />
+                    <Description resid="Verseform.FillDescription" />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16" />
+                    <bt:Image size="32" resid="Icon.32" />
+                    <bt:Image size="80" resid="Icon.80" />
+                  </Icon>
+                  <Action xsi:type="ExecuteFunction">
+                    <FunctionName>fillScripture</FunctionName>
+                  </Action>
+                </Control>
+                <Control xsi:type="Button" id="Verseform.ShowTaskpane">
+                  <Label resid="Verseform.PaneLabel" />
+                  <Supertip>
+                    <Title resid="Verseform.PaneLabel" />
+                    <Description resid="Verseform.PaneDescription" />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16" />
+                    <bt:Image size="32" resid="Icon.32" />
+                    <bt:Image size="80" resid="Icon.80" />
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <SourceLocation resid="Taskpane.Url" />
+                  </Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+          <ExtensionPoint xsi:type="ContextMenu">
+            <OfficeMenu id="ContextMenuText">
+              <Control xsi:type="Button" id="Verseform.FillContext">
+                <Label resid="Verseform.FillLabel" />
+                <Supertip>
+                  <Title resid="Verseform.FillLabel" />
+                  <Description resid="Verseform.FillDescription" />
+                </Supertip>
+                <Icon>
+                  <bt:Image size="16" resid="Icon.16" />
+                  <bt:Image size="32" resid="Icon.32" />
+                  <bt:Image size="80" resid="Icon.80" />
+                </Icon>
+                <Action xsi:type="ExecuteFunction">
+                  <FunctionName>fillScripture</FunctionName>
+                </Action>
+              </Control>
+            </OfficeMenu>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+    <Resources>
+      <bt:Images>
+        <bt:Image id="Icon.16" DefaultValue="https://verseform-word.kmproto.com/assets/icon-32.png" />
+        <bt:Image id="Icon.32" DefaultValue="https://verseform-word.kmproto.com/assets/icon-32.png" />
+        <bt:Image id="Icon.80" DefaultValue="https://verseform-word.kmproto.com/assets/icon-128.png" />
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://github.com/SydFloyd/verseform-word" />
+        <bt:Url id="Commands.Url" DefaultValue="https://verseform-word.kmproto.com/index.html" />
+        <bt:Url id="Taskpane.Url" DefaultValue="https://verseform-word.kmproto.com/index.html" />
+      </bt:Urls>
+      <bt:ShortStrings>
+        <bt:String id="GetStarted.Title" DefaultValue="Verseform is ready" />
+        <bt:String id="Verseform.GroupLabel" DefaultValue="Scripture" />
+        <bt:String id="Verseform.FillLabel" DefaultValue="Fill Scripture" />
+        <bt:String id="Verseform.PaneLabel" DefaultValue="Preview &amp; Settings" />
+        <bt:String id="Verseform.AnnotationBrand" DefaultValue="Verseform" />
+        <bt:String id="Verseform.AnnotationTitle" DefaultValue="Scripture reference" />
+        <bt:String id="Verseform.AnnotationSubtitle" DefaultValue="Preview and insert authorized Bible text" />
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="GetStarted.Description" DefaultValue="Type a reference, then choose Fill Scripture to insert the passage." />
+        <bt:String id="Verseform.FillDescription" DefaultValue="Replace the completed reference at the cursor with authorized Scripture without opening the preview pane." />
+        <bt:String id="Verseform.PaneDescription" DefaultValue="Open optional preview, translation, copyright, privacy, and cache controls." />
+      </bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
+</OfficeApp>

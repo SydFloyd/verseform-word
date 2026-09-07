@@ -78,6 +78,12 @@ The owner and DBS must still resolve `D-011`: public HTTPS host and log retentio
 
 The researched Partner Center submission path, draft listing copy, certification notes, platform matrix, DBS decisions, and tenant-pilot alternative are maintained in [`PUBLISHING.md`](PUBLISHING.md).
 
+### Friend pilot
+
+The owner-approved pilot origin is `https://verseform-word.kmproto.com`. Vercel builds the reviewed `dist` output and serves a version-matched production manifest at `/verseform-for-word.xml`; `/install` gives a nontechnical Word-on-the-web user the exact upload steps and persistence boundary. The checked-in pilot manifest deliberately retains **Verseform Project** as its provider until DBS supplies and authorizes the final Partner Center publisher identity.
+
+Manual Word-on-the-web sideloading is browser-profile-local test distribution. It survives ordinary document and Word reopenings in that profile, but clearing browser data or switching browsers requires another manifest upload, and it does not install the add-in into Word Desktop. Once registered, **Fill Scripture** starts the shared runtime without opening or retaining the optional pane. For durable cross-host organizational use, deploy the manifest through Microsoft 365 Integrated Apps; for ordinary public installation and automatic manifest updates, complete Marketplace publication.
+
 ## Known limits and support
 
 - WordApi 1.7 and a connected Microsoft 365 subscription are required for temporary annotations.
